@@ -1,0 +1,6 @@
+node_modules
+traget
+.env
+.env.local
+dist/
+build/
