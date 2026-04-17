@@ -4,12 +4,13 @@ use serde::Deserialize;
 use uuid::Uuid;
 use crate::{models::Product, db::DbPool};
 use axum::extract::Query;
+use rust_decimal::Decimal;
 
 #[derive(Deserialize)]
 pub struct CreateProduct {
     pub name: String,
     pub description: Option<String>,
-    pub price: f64,
+    pub price: Decimal,
     pub stock: i32,
     pub category: Option<String>,
     pub image_url: Option<String>,
@@ -19,7 +20,7 @@ pub struct CreateProduct {
 pub struct UpdateProduct {
     pub name: Option<String>,
     pub description: Option<String>,
-    pub price: Option<f64>,
+    pub price: Option<Decimal>,
     pub stock: Option<i32>,
     pub category: Option<String>,
     pub image_url: Option<String>,
@@ -36,6 +37,24 @@ pub async fn health_check() -> Json<serde_json::Value> {
         "status": "healthy",
         "service": "product-api"
     }))
+}
+
+#[debug_handler]
+pub async fn db_ready_check(
+    State(pool): State<DbPool>
+) -> impl IntoResponse {
+    match sqlx::query("SELECT 1")
+    .execute(&pool)
+    .await {
+        Ok(_) => {
+            StatusCode::OK
+        }
+        Err(e) => {
+            eprintln!("Error log:{}",e);
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    };
+
 }
 
 /// 全商品取得
@@ -83,7 +102,7 @@ pub async fn create_product(
     State(pool): State<DbPool>,
     Json(payload): Json<CreateProduct>
 ) -> Result<Json<Product>, String> {
-    if payload.price < 0.0 {
+    if payload.price.is_sign_negative() {
         return Err("価格は0以上である必要があります".to_string());
     }
     if payload.stock < 0 {
@@ -137,7 +156,7 @@ pub async fn update_product(
     let new_category = payload.category.or(existing.category);
     let new_image_url = payload.image_url.or(existing.image_url);
 
-    if new_price < 0.0 {
+    if new_price.is_sign_negative() {
         return Err("価格は0以上である必要があります".to_string());
     }
     if new_stock < 0 {

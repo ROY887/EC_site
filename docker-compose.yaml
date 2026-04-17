@@ -1,0 +1,134 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: ec_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=ec_db
+
+    ports: 
+     -  "5432:5432"
+
+    volumes: 
+     - postgres_data:/var/lib/postgresql/data
+     
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready","-U","postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 6
+      
+    networks:
+      - ec_network
+  
+  product-api:
+    build:
+      context: ./product_api
+      dockerfile: Dockerfile
+    container_name: product_api
+    environment:
+      DATABASE_URL: postgres://ec_user:test@localhost:5432/ec_db
+      RUST_LOG: info
+    ports:
+     - "8084:8084"
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: 
+      - ec_network
+
+    restart: 
+     unless-stopped
+    
+  user-api:
+    build:
+      context: ./user_api
+      dockerfile: Dockerfile
+    container_name: user_api
+    environment: 
+      DATABASE_URL: postgres://ec_user::test@localhost:5432/ec_db
+      RUST_LOG: info
+
+    ports:
+      - "8083:8083"
+
+    networks:
+      - ec_network
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    restart:
+      unless-stopped
+
+
+  cart-api:
+    build:
+      context: ./cart_api
+      dockerfile: Dockerfile
+
+    container_name: ec_cart_api
+
+    environment:
+      DATABASE_URL: postgres://ec_user::test@localhost:5432/ec_db
+      RUST_LOG: info
+
+    ports:
+      - "8085:8085"
+    
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+
+    networks:
+      - ec_network
+
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: ec_frontend
+
+    environment:
+      VITE_PRODUCT_API_URL: http://localhost:8084
+      VITE_USER_API_URL: http://localhost:8081
+      VITE_CART_API_URL: http://localhost:8085
+      VITE_DEBUG: "true"
+
+    ports:
+      - "5173:5173"
+
+    depends_on:
+      - product-api
+      - user-api
+      - cart-api
+    
+    networks:
+      - ec_network
+
+    restart: 
+      unless-stopped
+
+
+volumes: 
+  postgres_data:
+
+networks:
+  ec_network:
+    driver: bridge
+
+
+
+
+
+    
+
+
+

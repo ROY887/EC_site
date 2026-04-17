@@ -6,9 +6,9 @@ export const API_URLS = {
     USER: import.meta.env.VITE_USER_API_URL || "http://0.0.0.0:8081",
 };
 
-export const isDevelopment = import.meta.env.Development;
+export const isDevelopment = import.meta.env.DEV;
 export const isProduction = import.meta.env.PROD;
-export const mode = import.meta.env.PROD
+export const mode = import.meta.env.MODE;
 
 //デバッグモード
 export const isDebug = import.meta.env.VITE_DEBUG == 'true';
@@ -50,6 +50,7 @@ if (isDevelopment){
 }
 
 
+
 // class ApiService {
 //     constructor(baseURL) {
 //         this.baseURL = baseURL;
@@ -76,11 +77,99 @@ if (isDevelopment){
 
 //         return headers;
 //     }
+    
+//     async request(endpoint, options = {}) {
+//         const url = `${this.baseURL}${endpoint}`;
+//         const method = options.method || `GET`;
 
-//     getHeaders(customHeaders = {}){
+//         logApiCall(method, url, options.body ? JSON.parse(options.body) : null);
         
+//         const config = {
+//             ...options,
+//             headers: this.getHeaders(options.headers),
+//             signal: AbortSignal.timeout(REQUEST_TIMEOUT),
+//         };
+
+//         try {
+//             const response = await fetch(url,config);
+
+//             const contentType = response.headers.get('content-type');
+//             let data;
+
+//             if (contextType && contentType.includes('application/json')) {
+//                 data = await response.json();
+//             } else {
+//                 data = await response.text();
+//             }
+
+//             if (!response.ok) {
+//                 const error = {
+//                     status: response.status,
+//                     statusText: response.status,
+//                     data: data,
+//                     message: data?.message || data || `HTTP ${response.status}: ${response.statusText}`,
+//                     url: url,
+//                     method: method,
+//                 };
+
+//                 logApiError(method, url,data);
+//                 throw error;
+//             }
+//                 logApiResponse(method, url,data);
+//                 return data;
+//             } catch (error) {
+//                 if (error.name === 'TimeoutError') {
+//                     const networkError = {
+//                         status: 0,
+//                         message: 'ネットワークエラー: APIサーバーに接続できません',
+//                         url: url,
+//                         method: method,
+//                         originalError: error,   
+//                     };
+//                     logApiError(method, url ,networkError);
+//                     throw networkError;
+//                 }
+
+//                 if (error.status) {
+//                     throw error;
+//                 }
+
+//                 const unexpectedError = {
+//                     status: 500,
+//                     message: error.message ||'予期しないエラーが発生しました',
+//                     url: url,
+//                     method: method,
+//                     originalError: error,
+//                 };
+//                 logApiError(method, url, unexpectedError);
+//                 throw unexpectedError;
+//             }
+//     } 
+
+//     get(endpoint, options = {}) {
+//         return this.request(endpoint, {
+//             method: 'GET',
+//             ...options,
+//         })
 //     }
 
+//     post(endpoint,options =  {}) {
+//         return this.request(endpoint, {
+//             body: JSON.stringify(data),
+//             ...options,
+//         });
+//     }
+//     put(endpoint, options = {}) {
+//         return this.request(endpoint, {
+//             body: 
+//         })
+//     }   
+//     }
+
+
+
         
 
-// }
+export default function ProductCard({ product }) {
+    
+}

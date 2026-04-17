@@ -36,6 +36,24 @@ pub async fn health_check() -> &'static str {
     "user-api is healthy"
 }
 
+#[debug_handler]
+pub async fn db_ready_check(
+    State(pool): State<DbPool>
+) -> impl IntoResponse {
+    match sqlx::query("SELECT 1")
+    .execute(&pool)
+    .await {
+        Ok(_) => {
+            StatusCode::OK
+        }
+        Err(e) => {
+            eprintln!("Error log:{}",e);
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    };
+
+}
+
 // ユーザー登録
 #[axum::debug_handler]
 pub async fn create_user(
@@ -200,4 +218,6 @@ pub async fn get_all_user(
     .map_err(|e| e.to_string())?;
 
     Ok(Json(users))
+
+
 }

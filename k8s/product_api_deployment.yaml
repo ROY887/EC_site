@@ -1,0 +1,215 @@
+apiVersion: apps/v1
+kind: Deployment 
+metadata: 
+  name: product-api 
+  namespace: ec-backend
+  labels:
+    app.kubernetes.io/name: product-api
+    app.kubernetes.io/part-of: ec-microservices
+    app.kubernetes.io/version: "1.0.0"
+spec: 
+  replicas: 3
+  selector: 
+    matchLabels: 
+      app.kubernetes.io/name: product-api 
+  strategy: 
+    type: RollingUpdate 
+    rollingUpdate: 
+      maxSurge: 1
+      maxUnavailable: 0
+  template: 
+    metadata: 
+      labels: 
+        app.kubernetes.io/name: product-api
+        app.kubernetes.io/part-of: ec-microservices
+        app.kubernetes.io/version: "1.0.0"        
+      annotations: 
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8084"
+        prometheus.io/path: "/metrics"
+    
+    spec: 
+      terminationGracePeriodSeconds: 30            
+      restartPolicy: Always                        
+      containers:
+      - name: product-api
+        image: ec_site-product-api:v1.0.0          
+        imagePullPolicy: IfNotPresent
+        ports: 
+        - containerPort: 8084
+          protocol: TCP
+          name: http
+        env: 
+        - name: DATABASE_URL
+          valueFrom: 
+            secretKeyRef:
+              name: postgres-secret
+              key: database-url
+        - name: RUST_LOG
+          value: "info"
+        - name: SERVICE_NAME
+          value: "product-api"
+        - name: NAMESPACE 
+          valueFrom: 
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:  
+            fieldRef:
+              fieldPath: metadata.name 
+        resources: 
+          requests: 
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m" 
+            memory: "512Mi" 
+
+        livenessProbe: 
+          httpGet:
+            path: /health
+            port: 8084
+          initialDelaySeconds: 3
+          periodSeconds: 3
+          failureThreshold: 10
+
+        readinessProbe: 
+          httpGet:
+            path: /ready
+            port: 8084
+          initialDelaySeconds: 3
+          periodSeconds: 3
+          failureThreshold: 10
+
+        securityContext: 
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          readOnlyRootFilesystem: true             
+          capabilities:
+            drop: 
+            - ALL
+
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+          - name: config 
+            mountPath: /etc/config
+            readOnly: true
+          - name: secret 
+            mountPath: /etc/secret 
+            readOnly: true
+          #- name: pvc 
+            #mountPath: /etc/pvc
+
+        lifecycle:                                 
+          postStart: 
+            exec: 
+              command: ["/bin/sh", "-c", "echo 'starting' > /tmp/message"]
+          preStop: 
+            exec:
+              command: ["/bin/sh", "-c", "sleep 10"]
+
+      volumes:                                     
+        - name: tmp
+          emptyDir: {}
+        - name: config 
+          configMap: 
+            name: ec-config-map
+        - name: secret
+          secret: 
+            secretName: postgres-secret            
+        # - name: pvc
+        #   persistentVolumeClaim:                   
+        #     claimName: mypvc
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels: 
+    app.kubernetes.io/name: product-api
+    app.kubernetes.io/part-of: ec-microservices
+    app.kubernetes.io/version: "1.0.0"            
+  name: product-service 
+  namespace: ec-backend
+spec:
+  type: ClusterIP
+  sessionAffinity: None
+  ports: 
+    - name: http
+      port: 8084
+      targetPort: 8084
+      protocol: TCP
+  selector: 
+    app.kubernetes.io/name: product-api
+      
+    
+
+
+  
+  
+
+
+
+
+
+
+
+
+            
+        
+
+
+              
+            
+
+
+        
+
+
+
+
+
+
+
+            
+
+
+
+
+
+
+
+          
+
+
+        
+
+
+
+
+          
+
+        
+
+        
+          
+
+          
+  
+
+        
+    
+
+        
+
+
+  
+
+
+
+    
+
+
+

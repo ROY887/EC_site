@@ -1,9 +1,9 @@
-use axum::{extract::{Path, State}, Json, response::IntoResponse};
+use axum::{extract::{Path, State}, Json, response::IntoResponse, http::StatusCode};
 use crate::{models::CartItem, db::DbPool};
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
 use axum::debug_handler;
-
+use sqlx:: {Pool, Postgres};
 #[derive(Serialize, Debug, Deserialize, sqlx::FromRow)]
 pub struct CartItemResponse {
     pub id: Uuid,
@@ -25,11 +25,29 @@ pub struct RemoveCartItem {
     pub product_id: Uuid,
 }
 
-pub async fn health_check() -> &'static str {
+pub async fn health_check() -> impl IntoResponse{
     "cart-api is running"
 }
+#[debug_handler]
+pub async fn db_ready_check(
+    State(pool): State<DbPool>
+) -> impl IntoResponse {
+    match sqlx::query("SELECT 1")
+    .execute(&pool)
+    .await {
+        Ok(_) => {
+            StatusCode::OK
+        }
+        Err(e) => {
+            eprintln!("Error log:{}",e);
+            StatusCode::SERVICE_UNAVAILABLE
+        }
+    };
 
-/// カートに商品を追加
+}
+
+
+// カートに商品を追加
 #[debug_handler]
 pub async fn add_item(
     State(pool): State<DbPool>,
@@ -97,7 +115,7 @@ pub async fn get_cart(
     Ok(Json(items))
 }
 
-/// カート内の商品数量を更新
+// カート内の商品数量を更新
 
 
 #[debug_handler]

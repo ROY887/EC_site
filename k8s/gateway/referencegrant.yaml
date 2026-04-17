@@ -1,0 +1,66 @@
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata: 
+  name: ec-backend-grant
+  namespace: ec-backend 
+spec: 
+  from: 
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute 
+    namespace: ec-system
+  to: 
+  - group: "" 
+    kind: Service 
+---
+apiVersion: gateway.networking.k8s.io/v1beta1 
+kind: ReferenceGrant 
+metadata: 
+  name: ec-frontend-grant
+  namespace: ec-frontend
+spec: 
+  from: 
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute 
+    namespace: ec-system
+  to: 
+  - group: ""
+    kind: Service 
+---
+apiVersion: gateway.networking.k8s.io/v1beta1 
+kind: ReferenceGrant 
+metadata: 
+  name: ec-frontend-grant
+  namespace: ec-frontend
+spec: 
+  from: 
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute 
+    namespace: ec-system
+  to: 
+  - group: ""
+    kind: Service
+--- 
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant 
+metadata: 
+  name: ec-tls-grant
+  namespace: ec-system
+spec: 
+  from: 
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: ec-system
+  to: 
+  - group: ""
+    kind: Secret 
+    name: ec-tls-cert
+    
+
+
+
+
+
+
+  
+
+

@@ -15,3 +15,4 @@ PostgreSQL をバックエンドに使用し、Kubernetes 上で稼働させる�
 ```bash
 cargo build
 cargo run
+

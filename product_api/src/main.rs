@@ -24,6 +24,7 @@ async fn main() {
 
     let app = Router::new()
         .route("/health", get(handlers::health_check))
+        .route("/ready", get(handlers::db_ready_check))
         .route("/products", get(handlers::get_products))
         .route("/products", post(handlers::create_product))
         .route("/products/:id", get(handlers::get_product))

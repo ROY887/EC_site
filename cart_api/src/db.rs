@@ -7,8 +7,8 @@ pub type DbPool= Pool<Postgres>;
 
 pub async fn init_db() -> Result<DbPool, sqlx::Error> {
     let database_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set");
-    Pool::<Postgres>::connect(&database_url).await?;
-    Ok(Pool::<Postgres>::connect(&database_url).await?)
-}
+    let pool = Pool::<Postgres>::connect(&database_url).await?;
+    Ok(pool)
+} 
 
 

@@ -16,7 +16,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // アプリ起動時にlocalStorageからユーザー情報を復元
+// アプリ起動時にlocalStorageからユーザー情報を復元する
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
@@ -30,7 +30,7 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  // ユーザー登録
+// ユーザー登録
   const signUp = async (username, email, password) => {
     try {
       const newUser = await userApi.signUp(username, email, password);
@@ -42,7 +42,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // ログイン
+// ログイン
   const login = async (email, password) => {
     try {
       const response = await userApi.login(email, password);
@@ -55,7 +55,7 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // ログアウト
+// ログアウト
   const logout = () => {
     setUser(null);
     localStorage.removeItem('user');

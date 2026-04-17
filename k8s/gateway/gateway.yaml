@@ -1,0 +1,83 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway 
+metadata: 
+  name: ec-apigate-way
+  namespace: ec-system
+#HTTPリスナー
+spec:
+  gatewayClassName: ec-gateway-class
+  listeners: 
+  - name: http 
+    protocol: HTTP
+    port: 80 
+    hostname: "*.ec-site.example.com"
+    allowedRoutes: 
+      namespaces: 
+        from: All
+
+  - name: https 
+    protocol: HTTPS
+    port: 443
+    hostname: "*.ec-site.example.com"
+    tls: 
+      mode: Terminate
+      certificateRefs:
+      - name: ec-tls-secret
+        kind: Secret 
+        namespace: ec-system
+    allowedRoutes: 
+      namespaces:
+        from: All
+  
+  - name: internal
+    protocol: HTTP 
+    port: 8080 
+    hostname: "*.ec-site.example.local"
+    allowedRoutes: 
+      namespaces:
+        from: Selector
+        selector: 
+          matchLabels: 
+            app.kubernetes.io/part-of: ec-microservices
+
+        
+
+
+
+    
+        
+        
+
+
+
+    
+
+
+
+
+
+
+
+
+
+
+      
+
+
+
+    
+
+
+
+
+     
+        
+      
+
+
+
+    
+  
+
+
+

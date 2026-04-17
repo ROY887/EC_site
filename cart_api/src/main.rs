@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower_http::cors::CorsLayer;
 use tower_http::cors::Any;
-   
+
 
 
 mod handlers;
@@ -29,6 +29,7 @@ async fn main() {
     let app = Router::new()
         .route("/cart/add", post(handlers::add_item))
         .route("/health",get(handlers::health_check))
+        .route("/ready",get(handlers::db_ready_check))
         .route("/cart/:user_id",get(handlers::get_cart))
         .route("/cart/:user_id", delete(handlers::clear_cart))
         .route("/cart/update", put(handlers::update_item))
@@ -43,6 +44,7 @@ async fn main() {
     println!("cart-api running on http://{}", addr);
     println!("Available endpoints:");
     println!("  GET    /health");
+    println!("  GET    /ready");
     println!("  POST   /cart/add");
     println!("  GET    /cart/:user_id");
     println!("  PUT    /cart/update");

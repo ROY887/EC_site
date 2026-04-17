@@ -1,0 +1,160 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata: 
+  name: cart-api-route
+  namespace: ec-system
+  labels: 
+    app.kubernetes.io/name: cart-api
+    app.kubernetes.io/part-of: ec-microservices
+spec: 
+  parentRefs:
+  - name: ec-apigate-way
+    sectionName: https
+  hostnames: 
+   - "api.ec-site.example.com"
+  rules:
+  # 1. addリクエスト
+  - matches: 
+    - path:
+        type: Exact 
+        value: "/api/cart/add"
+    filters:
+      - type: RequestHeaderModifier
+        requestHeaderModifier: 
+          add:
+            - name: X-Service
+              value: cart-api
+            - name: X-Require-Auth
+              value: user
+    backendRefs:
+      - name: cart-api-service
+        port: 8085
+    timeouts:
+      request: 10s
+
+  # 2. getリクエスト
+  - matches:  
+    - path: 
+        type: RegularExpression
+        value: "/api/cart/[0-9a-f-]+"
+      method: GET
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add: 
+          - name: X-Service
+            value: cart-api
+          - name: X-Require-Auth
+            value: user
+    backendRefs: 
+      - name: cart-api-service
+        port: 8085
+
+  # 3. updateリクエスト
+  - matches: 
+    - path:
+        type: Exact
+        value: "/api/cart/update"
+      method: PUT 
+    filters: 
+    - type: RequestHeaderModifier
+      requestHeaderModifier: 
+        add:
+          - name: X-Service
+            value: cart-api
+          - name: X-Require-Auth
+            value: user
+    backendRefs:
+      - name: cart-api-service
+        port: 8085
+
+  # 4. 削除リクエスト
+  - matches:
+    - path: 
+        type: Exact
+        value: "/api/cart/remove"
+      method: DELETE
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier:
+        add:
+          - name:  X-Service
+            value: cart-api
+          - name: X-Require-Auth
+            value: user
+    backendRefs:
+      - name: cart-api-service
+        port: 8085
+
+  # 5. 全削除
+  - matches:
+    - path: 
+        type: RegularExpression
+        value: "/api/cart/[0-9a-f-]+"
+      method: DELETE
+    filters:
+    - type: RequestHeaderModifier
+      requestHeaderModifier: # 小文字に統一
+        add:
+          - name:  X-Service
+            value: cart-api
+          - name: X-Require-Auth
+            value: user
+    backendRefs:
+      - name: cart-api-service
+        port: 8085
+    
+  # 6. healthリクエスト
+  - matches:
+    - path:
+        type: Exact
+        value: /health
+      method: GET
+    backendRefs:
+    - name: cart-api-service
+      port: 8085
+    timeouts:
+      request: 5s
+  # 7 readyリクエスト
+  - matches: 
+    - path: 
+        type: Exact 
+        value: /ready
+      method: get
+    backendRefs: 
+    - name: cart-api-service
+      port: 8085 
+    timeouts:
+      request:5s
+
+
+
+
+
+
+    
+
+
+
+
+
+
+
+
+    
+
+
+  
+
+
+
+
+
+
+
+
+
+
+
+
+

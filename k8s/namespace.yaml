@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ec-system
+  labels: 
+    name: ec-system
+    app.kubernetes.io/part-of: ec-microservices
+---
+apiVersion: v1 
+kind: Namespace
+metadata: 
+  name: ec-backend
+  labels: 
+    name: ec-backend
+    app.kubernetes.io/part-of: ec-microservices
+---
+apiVersion: v1 
+kind: Namespace
+metadata: 
+  name: ec-frontend
+  labels: 
+    name: ec-frontend
+    app.kubernetes.io/part-of: ec-microservices
+---
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ec-monitoring
+  labels:
+    name: ec-monitoring
+    app.kubernetes.io/part-of: ec-microservices
+

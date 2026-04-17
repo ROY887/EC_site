@@ -11,7 +11,6 @@ mod models;
 mod db;
 
 
-
  
 #[tokio::main]
 async fn main() {
@@ -27,6 +26,7 @@ async fn main() {
     //ルータインスタンスを作成、
     let app = Router::new()
         .route("/health", get(handlers::health_check))//apiエンドポイント(URL)を作成
+        .route("/ready", get(handlers::db_ready_check))
         .route("/users", post(handlers::create_user))
         .route("/login", post(handlers::login_user))
         .route("/users", get(handlers::get_all_user))

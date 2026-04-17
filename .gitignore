@@ -4,3 +4,5 @@ traget
 .env.local
 dist/
 build/
+tls.crt 
+tls.key

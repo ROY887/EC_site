@@ -3,6 +3,10 @@ name = "user_api"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "user-api"
+path = "src/main.rs"
+
 [dependencies]
 axum = {version = "0.7", features = ["macros"]}
 dotenvy = "0.15.7"
@@ -12,3 +16,4 @@ sqlx = { version = "0.7", features = ["postgres", "runtime-tokio", "uuid", "macr
 tokio = {version = "1", features = ["full"]}
 uuid = {version = "1", features = ["serde","v4"]}
 tower-http={version="0.6.2", features=["cors"]}
+
