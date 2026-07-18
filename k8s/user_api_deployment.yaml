@@ -18,7 +18,7 @@ spec:
       maxSurge: 1
       maxUnavailable: 0
   template:
-    metadata:
+    metadata: 
       labels:
         app.kubernetes.io/name: user-api
         app.kubernetes.io/part-of: ec-microservices
@@ -39,13 +39,14 @@ spec:
         ports: 
         - containerPort: 8084
           protocol: TCP
-          name: http
+          name: http-user
         env:
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: postgres-secret
               key: database-url
+        - name: JWT_SECRET 
      
         resources:
           requests:

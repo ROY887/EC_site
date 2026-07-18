@@ -32,7 +32,11 @@ export default function ProductCard({ product }) {
       {/* 商品画像 */}
       <div className="relative overflow-hidden bg-gray-100">
         <img
-          src={product.image_url || 'https://via.placeholder.com/300'}
+          src={
+             product.image_url && !product.image_url.includes('via.placeholder.com')
+              ? product.image_url
+              : 'https://placehold.co/300x300'
+}
           alt={product.name}
           className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-300"
         />

@@ -5,6 +5,8 @@ metadata:
   labels: 
     name: ec-system
     app.kubernetes.io/part-of: ec-microservices
+    monitoring: enabled
+
 ---
 apiVersion: v1 
 kind: Namespace
@@ -13,6 +15,7 @@ metadata:
   labels: 
     name: ec-backend
     app.kubernetes.io/part-of: ec-microservices
+    monitoring: enabled
 ---
 apiVersion: v1 
 kind: Namespace
@@ -21,6 +24,7 @@ metadata:
   labels: 
     name: ec-frontend
     app.kubernetes.io/part-of: ec-microservices
+    monitoring: enabled
 ---
 
 apiVersion: v1
@@ -30,4 +34,5 @@ metadata:
   labels:
     name: ec-monitoring
     app.kubernetes.io/part-of: ec-microservices
+    monitoring: enabled 
 

@@ -1,0 +1,82 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: 
+  name: ec-backend-podmonitor
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: ec-backend-podmonitor
+    app.kubernetes.io/part-of: ec-microservices
+    app.kubernetes.io/version: 1.0.0
+spec:
+  namespaceSelector: 
+    matchNames: 
+      - ec-backend
+
+  selector:
+    matchLabels:
+        app.kubernetes.io/part-of: ec-microservices
+    
+
+  podMetricsEndpoints: 
+    - port: http-user
+      path:  /metrics
+      interval: 30s
+      scrapeTimeout: 20s
+    - port: http-cart
+      path: /metrics 
+      interval: 30s 
+      scrapeTimeout: 20s
+    - port: http-product
+      path: /metrics 
+      interval: 30s
+      scrapeTimeout: 20s
+
+ 
+
+--- 
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata: 
+  name: ec-frontend-podmonitor
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: ec-frontend-podmonitor
+    app.kubernetes.io/version: "1.0.0" 
+    app.kubernetes.io/part-of: ec-microservices
+spec: 
+  namespaceSelector:
+    matchNames:
+    - ec-frontend
+  
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: ec-microservices
+  
+  podMetricsEndpoints:
+  - port: http-frontend
+    path: /metrics
+    scheme: http 
+    interval: 30s 
+    scrapeTimeout: 20s
+    
+
+
+
+  
+
+
+
+
+
+
+
+      
+
+
+      
+
+  
+
+  
+
+  

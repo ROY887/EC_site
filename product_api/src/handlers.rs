@@ -1,10 +1,12 @@
-use axum::{Json, extract::{State, Path}};
+use axum::{Json, extract::{State, Path},http::StatusCode};
 use serde_json::json;
 use serde::Deserialize;
 use uuid::Uuid;
 use crate::{models::Product, db::DbPool};
-use axum::extract::Query;
+use axum::{extract::Query, response::IntoResponse};
 use rust_decimal::Decimal;
+
+
 
 #[derive(Deserialize)]
 pub struct CreateProduct {
@@ -39,7 +41,7 @@ pub async fn health_check() -> Json<serde_json::Value> {
     }))
 }
 
-#[debug_handler]
+#[axum::debug_handler]
 pub async fn db_ready_check(
     State(pool): State<DbPool>
 ) -> impl IntoResponse {

@@ -1,8 +1,15 @@
 use axum::{extract::{State, Path}, Json};
 use crate::db::DbPool;
 use crate::models::User;
+use crate::auth::{verify_jwt, hash_password,create_jwt, verify_password};
 use uuid::Uuid;
 use serde::{Deserialize, Serialize};
+//  use argon2::{
+//    password_hash::{rand_core::OsRng, SaltString, PasswordHasher},
+//    Argon2,
+// };
+use axum::{response::IntoResponse,http::StatusCode};
+
 
 #[derive(Deserialize)]
 pub struct CreateUser {
@@ -18,11 +25,14 @@ pub struct LoginRequest {
 }
 
 
+
 #[derive(Serialize)]
 pub struct LoginResponse {
     pub user: User,
     pub message: String,
+    token: Option<String>, // jwtトークン
 }
+
 
 
 #[derive(Deserialize)]
@@ -36,7 +46,8 @@ pub async fn health_check() -> &'static str {
     "user-api is healthy"
 }
 
-#[debug_handler]
+// k8sのlifycycleのためのエンドポイント
+#[axum::debug_handler]
 pub async fn db_ready_check(
     State(pool): State<DbPool>
 ) -> impl IntoResponse {
@@ -60,11 +71,15 @@ pub async fn create_user(
     State(pool): State<DbPool>,
     Json(payload): Json<CreateUser> 
 ) -> Result<Json<User>, String> {
+    //パスワードのハッシュ化
+    let hash = hash_password(&payload.password)
+        .map_err(|e| e.to_string())?;
     // メールアドレスの重複チェック
     let existing = sqlx::query_as::<_, User>(
         "SELECT id, username, email, password_hash FROM users WHERE email = $1"
     )
     .bind(&payload.email)
+    .bind(&hash)
     .fetch_optional(&pool)
     .await
     .map_err(|e| e.to_string())?;
@@ -82,7 +97,7 @@ pub async fn create_user(
     .bind(Uuid::new_v4())
     .bind(&payload.username)
     .bind(&payload.email)
-    .bind(&payload.password)
+    .bind(&hash)
     .fetch_one(&pool)
     .await
     .map_err(|e| e.to_string())?;
@@ -102,6 +117,7 @@ pub async fn login_user(
          FROM users 
          WHERE email = $1"
     )
+
     .bind(&payload.email)
     .fetch_optional(&pool)
     .await
@@ -110,19 +126,28 @@ pub async fn login_user(
     match user {
         Some(user) => {
             // パスワード検証
-            if user.password_hash == payload.password {
-                Ok(Json(LoginResponse {
-                    user,
-                    message: "ログインに成功しました".to_string(),
-                }))
-            } else {
-                Err("メールアドレスまたはパスワードが正しくありません".to_string())
-            }
-        }
-        None => Err("メールアドレスまたはパスワードが正しくありません".to_string()),
-    }
-}
+            let confirm = verify_password(&payload.password,&user.password_hash)
+                    .map_err(|e| e.to_string())?;
+            // jwt発行
+            if confirm {
+                let token =  create_jwt(&user.id.to_string())
+                    .map_err(|e| e.to_string())?;
+             
+            Ok(Json(LoginResponse {
+                user,
+                message: "ログインに成功しました".to_string(),
+                token: Some(token),
+            }))
 
+            } else {
+                Err("メールアドレスまたはパスワードが違います".to_string())
+            }
+    }
+    None => {
+        Err("メールアドレスまたはパスワードを入力してください".to_string())
+        }
+    }   
+}
 // ユーザー情報更新
 #[axum::debug_handler]
 pub async fn update_user(

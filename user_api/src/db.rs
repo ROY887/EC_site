@@ -1,12 +1,19 @@
 use sqlx::{Pool, Postgres};
 use std::env;
 use std::result::Result;
+use dotenvy::dotenv;
+use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
 
 pub type DbPool = Pool<Postgres>;
+ 
+pub async fn init_db(database_url: &str) -> Result<DbPool, sqlx::Error> {
+    // コネクション数の制限をかける
+    let pool =  PgPoolOptions::new()
+        .max_connections(20)
+        .acquire_timeout(Duration::from_secs(3))
+        .connect(database_url)
+        .await?;
 
-pub async fn init_db() -> Result<DbPool, sqlx::Error> { //Resultは正しく動いた場合の出力Tと,エラーとなった時の出力Eを記入する
-    let database_url = env::var("DATABASE_URL").expect("NOT FOUND DATABASE_URL"); //database_urlにenvに書いてある、DATABASE_URLを代入し、expectメソッドはerrした時メッセージを出力する
-    Pool::<Postgres>::connect(&database_url).await
+    Ok(pool)
 }
-
-

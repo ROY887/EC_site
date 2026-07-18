@@ -48,7 +48,7 @@ export default function Header({ onSearch, onCartClick, onLoginClick }) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 px-4 py-2 text-gray-900 focus:outline-none"
-              />
+              /> 
               <button
                 type="submit"
                 className="bg-orange-400 px-4 hover:bg-orange-500 transition"
@@ -129,4 +129,5 @@ export default function Header({ onSearch, onCartClick, onLoginClick }) {
       </div>
     </header>
   );
+
 }

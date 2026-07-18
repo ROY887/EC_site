@@ -1,0 +1,110 @@
+apiVersion: monitoring.coreos.com/v1 
+kind: Prometheus 
+metadata: 
+  labels: 
+    app.kubernetes.io/name: prometheus 
+    app.kubernetes.io/part-of: ec-microservices 
+    app.kubernetes.io/component: monitoring
+    prometheus: ec-monitoring
+  name: ec-prometheus
+  namespace: ec-monitoring
+spec: 
+  alerting:
+    alertmanagers:
+
+    - apiVersion: v2
+      name: alertmanager-main
+      namespace: ec-monitoring
+      port: web
+      scheme: http
+      timeout: 10s
+
+  externalLabels:
+    cluster: ec-production
+    environment: production
+    region: asia-northeast1
+  image: quay.io/prometheus/prometheus:v3.11.3
+
+  logLevel: info
+  logFormat: logfmt
+
+  storage: 
+    volumeClaimTemplate:
+      spec: 
+        storageClassName: standard
+        accessModes: ["ReadWriteOnce"]
+        resources: 
+          requests:
+            storage: 50Gi
+
+  nodeSelector:
+    kubernetes.io/os: linux
+  podMetadata:
+    labels:
+      app.kubernetes.io/name: ec-prometheus
+      app.kubernetes.io/part-of: kube-prometheus
+      app.kubernetes.io/version: 3.11.3
+    annotations: 
+      prometheus.io/scrape: "true"
+      prometheus.io/port: "9090"
+      
+  podMonitorNamespaceSelector: 
+    matchLabels: 
+      monitoring: enabled 
+  podMonitorSelector: 
+    matchLabels: 
+      app.kubernetes.io/part-of: ec-microservices 
+  
+  probeNamespaceSelector: 
+    matchLabels:
+      monitoring: enabled 
+  probeSelector: 
+    matchLabels:
+      app.kubernetes.io/part-of: ec-microservices 
+
+  web: 
+    maxConnections: 512
+    pageTitle: "EC Microservice Prometheus"
+
+    
+
+  replicas: 2
+  resources:
+    requests:
+      memory: 400Mi
+      cpu: 500m
+    limits: 
+      memory: 1000Mi
+      cpu: 100m
+  ruleNamespaceSelector: 
+    matchLabels:
+      monitoring: enabled 
+  
+
+  ruleSelector: 
+    matchLabels: 
+      app.kubernetes.io/part-of: ec-microservices
+  scrapeConfigNamespaceSelector: 
+    matchLabels: 
+      monitoring: enabled 
+  scrapeConfigSelector: 
+    matchLabels:
+      app.kubernetes.io/part-of: ec-microservices
+
+  securityContext:
+    fsGroup: 2000
+    runAsNonRoot: true
+    runAsUser: 1000
+  serviceAccountName: prometheus-k8s
+  serviceDiscoveryRole: EndpointSlice
+  serviceMonitorNamespaceSelector: 
+    matchLabels: 
+      monitoring: enabled
+  serviceMonitorSelector: 
+    matchLabels:
+      app.kubernetes.io/part-of: ec-microservices
+  version: 3.11.3
+
+    
+
+

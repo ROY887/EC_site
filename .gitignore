@@ -1,8 +1,17 @@
+# Node
 node_modules
-traget
-.env
-.env.local
 dist/
 build/
-tls.crt 
+
+# Rust
+target/
+
+# Environment / secrets
+.env*
+tls.crt
 tls.key
+*.key
+*.pem
+
+# macOS
+.DS_Store

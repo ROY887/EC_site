@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: frontned
+  name: frontend
   namespace: ec-frontend
   labels: 
     app.kubernetes.io/name: frontend 
@@ -29,7 +29,7 @@ spec:
         prometheus.io/port: "5173"
     
     spec:
-      terminationGracePeriod:  30
+      terminationGracePeriodSeconds:  30
       restartPolicy: Always
       containers:
       - name: frontend
@@ -37,7 +37,7 @@ spec:
         ports:
         - containerPort: 5173
           protocol: TCP  
-          name: http 
+          name: http-frontend 
         env: 
         - name: VITE_PRODUCT_API_URL 
           value: "https://api.ec_site.example.com/api/product"
@@ -76,18 +76,11 @@ spec:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
           runAsUser: 1000
-
-          readOnlyFilesystem: true 
+          readOnlyRootFilesystem: true 
           capabilities:
             drop:
             - ALL
 
-      volumes:
-      - name: tmp 
-        emptyDir: {}
-      - name: config 
-        configMap:
-          name: config_map
         volumeMounts: 
         - name: tmp
           mountPath: /tmp 
@@ -96,10 +89,17 @@ spec:
         lifecycle:
           postStart:
             exec:
-              command: ["/bin/sh", "-c", "echo 'starting' > /tmp/message"]
+             command: ["/bin/sh", "-c", "echo 'starting' > /tmp/message"]
           preStop:
             exec:
               command: ["/bin/sh", "-c", "sleep 10"]
+
+      volumes:
+      - name: tmp 
+        emptyDir: {}
+      - name: config 
+        configMap:
+          name: config_map
 
 ---
 apiVersion: v1
@@ -107,16 +107,18 @@ kind: Service
 metadata: 
   namespace: ec-frontend
   name: frontend-service
-  labels: 
-    app.kubernetes.io/name: frontend-service
-    app.kubernetes.io/part-of: ec-microservices 
-    app.kubernetes.io/version: "1.0.0"
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/part-of: ec-microservices
 spec: 
   type: ClusterIP
+  ports: 
+  - port: 5173
+    targetPort: 5173
+    protocol: TCP 
   selector: 
     app.kubernetes.io/name: frontend
 
-  annotations: ec-microservices 
 
           
 

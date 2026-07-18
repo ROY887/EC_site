@@ -28,7 +28,7 @@ spec:
         prometheus.io/port: "8084"
         prometheus.io/path: "/metrics"
     spec:
-      # Pod全体の設定（ここに移動しました）
+      # Pod全体の設定（ここに移動した）
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       
@@ -39,7 +39,7 @@ spec:
         ports: 
         - containerPort: 8084
           protocol: TCP
-          name: http
+          name: http-cart
         env:
         - name: DATABASE_URL
           valueFrom:
@@ -54,9 +54,10 @@ spec:
           limits:
             cpu: "500m"
             memory: "512Mi"
+            #
         livenessProbe:
           httpGet:
-            path: /health
+            path: /health 
             port: 8085
           initialDelaySeconds: 3
           periodSeconds: 3
@@ -119,3 +120,5 @@ spec:
       port: 8084
       targetPort: 8084
       protocol: TCP
+
+      

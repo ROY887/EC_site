@@ -38,7 +38,7 @@ spec:
         ports: 
         - containerPort: 8084
           protocol: TCP
-          name: http
+          name: http-product
         env: 
         - name: DATABASE_URL
           valueFrom: 
@@ -143,7 +143,7 @@ spec:
       protocol: TCP
   selector: 
     app.kubernetes.io/name: product-api
-      
+  
     
 
 

@@ -84,7 +84,11 @@ export default function CartPage({ onClose }) {
             <div key={item.product_id} className="flex gap-4 py-4 border-b last:border-b-0">
               {/* 商品画像 */}
               <img
-                src={item.image_url || 'https://via.placeholder.com/100'}
+                src={
+                  item.image_url && !item.image_url.includes('via.placeholder.com')
+                    ? item.image_url
+                    : 'https://placehold.co/100x100'
+                }
                 alt={item.name}
                 className="w-24 h-24 object-cover rounded-lg"
               />

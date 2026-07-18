@@ -1,4 +1,7 @@
-use axum::{Router, routing::get, routing::post, routing::delete, routing::put};
+use axum::{Router, 
+    routing::get, routing::post, 
+    routing::delete, routing::put, 
+};
 use std::net::SocketAddr;
 use dotenvy::dotenv;
 use tower_http::cors::CorsLayer;
@@ -9,14 +12,32 @@ use std::env;
 mod handlers;
 mod models;
 mod db;
+mod auth;
+
+// 開発環境　本番環境によって読み込む.envファイルを選択
+fn load_env() {
+    let app_env =  env::var("APP_ENV")
+        .unwrap_or_else(|_| "development".to_string());
+    match app_env.as_str() {
+        "production" => {
+            dotenvy::from_filename(".env.production").ok();
+        }
+        _  => {
+            dotenvy::dotenv().ok();
+        }
+    }
+} 
 
 
- 
+
 #[tokio::main]
 async fn main() {
-    dotenv().ok();
 
-    let pool = db::init_db().await.expect("DB 接続に失敗しました");
+    load_env();
+
+    let database_url = env::var("DATABASE_URL").expect("NOT FOUND DATABASE_URL"); 
+
+    let pool = db::init_db(&database_url).await.expect("DB 接続に失敗しました");
 
     let cors = CorsLayer::new()
     .allow_origin(Any)
@@ -46,6 +67,7 @@ async fn main() {
     println!("  GET    /users/:id");
     println!("  PUT    /users/:id");
     println!("  DELETE /users/:id");
+
 
 
     axum::serve(tokio::net::TcpListener::bind(addr).await.unwrap(), app)

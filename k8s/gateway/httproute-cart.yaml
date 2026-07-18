@@ -13,7 +13,7 @@ spec:
   hostnames: 
    - "api.ec-site.example.com"
   rules:
-  # 1. addリクエスト
+  # 1 addリクエスト
   - matches: 
     - path:
         type: Exact 

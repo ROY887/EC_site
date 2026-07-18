@@ -1,15 +1,27 @@
 use axum::{extract::{Path, State}, Json, response::IntoResponse, http::StatusCode};
 use crate::{models::CartItem, db::DbPool};
+
 use uuid::Uuid;
 use serde::{Serialize, Deserialize};
 use axum::debug_handler;
 use sqlx:: {Pool, Postgres};
+// use argon2::{
+//     password_hash::{rand_core::Osrng, SaltString, PasswordHasher},
+//     Argon2,
+// };
+
 #[derive(Serialize, Debug, Deserialize, sqlx::FromRow)]
 pub struct CartItemResponse {
     pub id: Uuid,
     pub user_id: Uuid,
     pub product_id: Uuid,
     pub quantity: i32,
+}
+
+#[derive(Debug,Serialize,Deserialize)]
+pub struct Claims{
+    sub: String,  //ユーザーIDなど
+    exp: usize,  //有効期限
 }
 
 #[derive(Deserialize)]
@@ -47,7 +59,7 @@ pub async fn db_ready_check(
 }
 
 
-// カートに商品を追加
+//カートに商品を追加
 #[debug_handler]
 pub async fn add_item(
     State(pool): State<DbPool>,
@@ -98,7 +110,7 @@ pub async fn add_item(
     }
 }
 
-/// ユーザーのカート全体を取得
+// ユーザーのカート全体を取得
 #[debug_handler]
 pub async fn get_cart(
     State(pool): State<DbPool>,
@@ -116,8 +128,6 @@ pub async fn get_cart(
 }
 
 // カート内の商品数量を更新
-
-
 #[debug_handler]
 pub async fn update_item(
     State(pool): State<DbPool>,
@@ -143,7 +153,7 @@ pub async fn update_item(
 }
 
 
-/// カートから商品を削除
+// カートから商品を削除
 #[debug_handler]
 pub async fn remove_item(
     State(pool): State<DbPool>,
@@ -168,7 +178,7 @@ pub async fn remove_item(
     })))
 }
 
-/// ユーザーのカートを全削除
+// ユーザーのカートを全削除
 #[debug_handler]
 pub async fn clear_cart(
     State(pool): State<DbPool>,
@@ -186,4 +196,7 @@ pub async fn clear_cart(
         "message": "カートをクリアしました",
         "deleted_count": result.rows_affected()
     })))
-}
+
+}    
+
+

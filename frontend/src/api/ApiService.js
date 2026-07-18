@@ -1,5 +1,5 @@
 // src/api/ApiService.js
-// クラスベースAPIサービス（完成版 - Vite最適化）
+// クラスベースAPIサービス
 
 import { 
   API_URLS, 
@@ -11,9 +11,8 @@ import {
 
 
 
-/**
- * 基底APIサービスクラス
- */
+
+ // 基底APIサービスクラス
 class ApiService {
   constructor(baseURL) {
     this.baseURL = baseURL;
@@ -25,25 +24,23 @@ class ApiService {
 
 
 
-  /**
-   * 認証トークンを設定
-   */
+  
+  //認証トークンを設定
   setToken(token) {
     this.token = token;
     return this;
   }
 
-  /**
-   * 認証トークンをクリア
-   */
+  
+   
+  // 認証トークンをクリア
   clearToken() {
     this.token = null;
     return this;
   }
 
-  /**
-   * ヘッダーを取得
-   */
+  
+   //ヘッダーを取得
   getHeaders(customHeaders = {}) {
     const headers = {
       ...this.defaultHeaders,
@@ -57,9 +54,9 @@ class ApiService {
     return headers;
   }
 
-  /**
-   * 汎用リクエストメソッド
-   */
+  
+   // 汎用リクエストメソッド
+   
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
@@ -150,9 +147,9 @@ class ApiService {
     }
   }
 
-  /**
-   * GET リクエスト
-   */
+  
+   // GET リクエスト
+   
   get(endpoint, options = {}) {
     return this.request(endpoint, {
       method: 'GET',
@@ -160,9 +157,9 @@ class ApiService {
     });
   }
 
-  /**
-   * POST リクエスト
-   */
+  
+  //  POST リクエスト
+   
   post(endpoint, data, options = {}) {
     return this.request(endpoint, {
       method: 'POST',
@@ -171,9 +168,8 @@ class ApiService {
     });
   }
 
-  /**
-   * PUT リクエスト
-   */
+   // PUT リクエスト
+   
   put(endpoint, data, options = {}) {
     return this.request(endpoint, {
       method: 'PUT',
@@ -182,9 +178,9 @@ class ApiService {
     });
   }
 
-  /**
-   * DELETE リクエスト
-   */
+  
+  //  DELETE リクエスト
+   
   delete(endpoint, data = null, options = {}) {
     return this.request(endpoint, {
       method: 'DELETE',
@@ -294,7 +290,7 @@ class CartService extends ApiService {
     });
 
   // カート取得
-  get = (userId) => this.get(`/cart/${userId}`);
+  getUser = (userId) => this.get(`/cart/${userId}`);
 
   // 商品数量を更新
   update = (userId, productId, quantity) => 

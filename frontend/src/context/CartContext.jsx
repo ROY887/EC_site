@@ -33,7 +33,7 @@ export function CartProvider({ children }) {
     
     try {
       setLoading(true);
-      const items = await cartApi.get(user.id);
+      const items = await cartApi.getUser(user.id);
       
       // 各アイテムの商品情報を取得
       const itemsWithProducts = await Promise.all(
