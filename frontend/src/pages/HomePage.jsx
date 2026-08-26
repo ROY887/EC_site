@@ -1,5 +1,5 @@
 // src/pages/HomePage.jsx
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Loader, AlertCircle } from 'lucide-react';
 import { productApi } from '../api';
 import ProductCard from '../components/product/ProductCard';
@@ -13,27 +13,18 @@ export default function HomePage({ searchQuery }) {
 
 
 
-  useEffect(() => {
-    loadProducts();
-  }, [searchQuery]);
-
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      let data;
-      if (searchQuery) {
-        data = await productApi.search(searchQuery);
-      } else {
-        data = await productApi.getAll();
-      }
 
-      console.log('API Response:', data)
-      
+      const data = searchQuery
+        ? await productApi.search(searchQuery)
+        : await productApi.getAll();
+
       // データが配列でない場合は、配列に変換
       const productsData = Array.isArray(data) ? data : (data?.data || data?.products || []);
-      
+
       setProducts(productsData);
     } catch (err) {
       setError(err.message || '商品の読み込みに失敗しました');
@@ -41,7 +32,11 @@ export default function HomePage({ searchQuery }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchQuery]);
+
+  useEffect(() => {
+    loadProducts();
+  }, [loadProducts]);
 
   if (loading) {
     return (

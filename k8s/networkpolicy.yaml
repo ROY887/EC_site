@@ -1,0 +1,82 @@
+# ec-backend: 全て拒否する
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: ec-backend
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+---
+# API: Gatewayからのみ受け付ける 
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-apis
+  namespace: ec-backend
+spec:
+  podSelector:
+    matchExpressions:
+    - key: app.kubernetes.io/name
+      operator: In
+      values: ["product-api", "user-api", "cart-api"]
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    # Envoy Gateway のデータプレーンが動くnamespace
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+    ports:
+    - protocol: TCP
+      port: 8084
+    - protocol: TCP
+      port: 8081
+    - protocol: TCP
+      port: 8085
+---
+# PostgreSQL: API とマイグレーション Job からのみ
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-apis-to-postgres
+  namespace: ec-backend
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchExpressions:
+        - key: app.kubernetes.io/name
+          operator: In
+          values: ["product-api", "user-api", "cart-api", "db-migrate", "db-backup"]
+    ports:
+    - protocol: TCP
+      port: 5432
+---
+# ec-frontend: Gateway からのみ 
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-gateway-to-frontend
+  namespace: ec-frontend
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: frontend
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: envoy-gateway-system
+    ports:
+    - protocol: TCP
+      port: 8080

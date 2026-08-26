@@ -1,0 +1,181 @@
+
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+kubeEtcd:
+  enabled: false
+
+kubelet:
+  enabled: true
+  serviceMonitor:
+    relabelings:
+      - action: replace
+        sourceLabels: [__metrics_path__]
+        targetLabel: metrics_path
+      # [xxxx::xxxx]:10250 の形をしたターゲット（IPv6）を除外する
+      - action: drop
+        sourceLabels: [__address__]
+        regex: '\[.+\]:.*'
+    cAdvisorRelabelings:
+      - action: replace
+        sourceLabels: [__metrics_path__]
+        targetLabel: metrics_path
+
+      - action: drop
+        sourceLabels: [__address__]
+        regex: '\[.+\]:.*'
+    probesRelabelings:
+      - action: replace
+        sourceLabels: [__metrics_path__]
+        targetLabel: metrics_path
+     
+      - action: drop
+        sourceLabels: [__address__]
+        regex: '\[.+\]:.*'
+    resourceRelabelings:
+      - action: replace
+        sourceLabels: [__metrics_path__]
+        targetLabel: metrics_path
+
+      - action: drop
+        sourceLabels: [__address__]
+        regex: '\[.+\]:.*'
+
+defaultRules:
+  create: true
+  rules:
+    kubeControllerManager: false
+    kubeScheduler: false
+    kubeProxy: false
+    etcd: false
+
+# ------------------------------------------------------------------
+# Prometheus
+# ------------------------------------------------------------------
+prometheus:
+  prometheusSpec:
+    # 既定では release ラベルを持つリソースしか拾わない。
+    # k8s/monitoring/ の手書きマニフェストを拾わせるため無効化する。
+    ruleSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
+    probeSelectorNilUsesHelmValues: false
+    scrapeConfigSelectorNilUsesHelmValues: false
+
+    retention: 15d
+    # PVC 10Gi に対して余裕を残す。埋まるとノードごと巻き込む。
+    retentionSize: 6GB
+
+    externalLabels:
+      cluster: ec-production
+
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+      limits:
+        cpu: 1000m
+        memory: 1536Mi
+
+    # 注意: volumeClaimTemplate は作成後に変更できない。
+    # standard は allowVolumeExpansion: true なので拡張のみ可能。
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 10Gi
+
+# ------------------------------------------------------------------
+# Alertmanager
+# ------------------------------------------------------------------
+alertmanager:
+  alertmanagerSpec:
+    # Slack の設定は AlertmanagerConfig(ec-alerts) 側に置く。
+    # Webhook URL は Secret 参照にし、マニフェストには書かない。
+    alertmanagerConfiguration:
+      name: ec-alerts
+    resources:
+      requests:
+        cpu: 20m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: standard
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 2Gi
+
+# ------------------------------------------------------------------
+# Grafana
+# ------------------------------------------------------------------
+grafana:
+  # パスワードは scripts/create-secrets.sh が乱数生成して登録する
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+
+  persistence:
+    enabled: true
+    type: pvc
+    storageClassName: standard
+    accessModes: ["ReadWriteOnce"]
+    size: 2Gi
+
+  grafana.ini:
+    users:
+      allow_sign_up: false
+    auth.anonymous:
+      enabled: false
+    analytics:
+      reporting_enabled: false
+      check_for_updates: false
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# ------------------------------------------------------------------
+# 単一ノード向けの縮小
+# ------------------------------------------------------------------
+kube-state-metrics:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 200m
+      memory: 192Mi
+
+prometheus-node-exporter:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 24Mi
+    limits:
+      cpu: 100m
+      memory: 64Mi
+
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 20m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

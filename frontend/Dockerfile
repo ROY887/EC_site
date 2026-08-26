@@ -1,21 +1,24 @@
-FROM node:current-alpine AS builder
+# --- ビルドステージ ---
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
 COPY package*.json ./
-
 RUN npm ci
 
 COPY . .
 
-FROM node:current-alpine
+# 静的ファイルを生成する（開発サーバーは本番では使わない）
+RUN npm run build
 
-WORKDIR /app
+# --- 配信ステージ ---
+# nginx-unprivileged は非 root（uid 101）で動作し、8080 を listen する。
+# k8s の runAsNonRoot / readOnlyRootFilesystem と組み合わせられる。
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-COPY --from=builder /app/node_modules ./node_modules
+COPY --chown=nginx:nginx nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder --chown=nginx:nginx /app/dist /usr/share/nginx/html
 
-COPY . .
+EXPOSE 8080
 
-EXPOSE 5173
-
-CMD ["npm","run", "dev", "--", "--host", "0.0.0.0"]
+CMD ["nginx", "-g", "daemon off;"]

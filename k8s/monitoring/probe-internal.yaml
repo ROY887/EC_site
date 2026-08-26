@@ -1,0 +1,25 @@
+
+# Gatewayを直接叩く(cloudflareとトンネルを経由しないため外部プローブと比較し、障害箇所を切り分ける)
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: internal-gateway
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: internal-gateway-probe
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  interval: 60s
+  scrapeTimeout: 10s
+  module: http_internal
+  prober:
+    url: blackbox-exporter.ec-monitoring.svc.cluster.local:9115
+    scheme: http
+    path: /probe
+  targets:
+    staticConfig:
+      static:
+      - http://ec-gateway-entry.envoy-gateway-system.svc.cluster.local/
+      labels:
+        probe_scope: internal
+        probe_target: frontend

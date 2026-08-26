@@ -8,77 +8,30 @@ metadata:
     app.kubernetes.io/part-of: ec-microservices
 spec:
   parentRefs:
-  - name: ec-gateway
+  - name: ec-apigate-way
     namespace: ec-system
-    sectionName: https
-  
-  hostnames:
-  - "api.ec-site.example.com"
-  
+    sectionName: http
+
   rules:
-  # 商品一覧・検索
   - matches:
     - path:
         type: PathPrefix
         value: /api/products
       method: GET
-    backendRefs:
-    - name: product-api-service
-      port: 8084
-      weight: 100
     filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /products
     - type: RequestHeaderModifier
       requestHeaderModifier:
         add:
         - name: X-Service
           value: product-api
-    timeouts:
-      request: 30s
-  
-  # 商品詳細
-  - matches:
-    - path:
-        type: RegularExpression
-        value: /api/products/[0-9a-f-]+
-      method: GET
     backendRefs:
-    - name: product-api-service
-      port: 8084
-  
-  # 商品作成（管理者のみ）
-  - matches:
-    - path:
-        type: PathPrefix
-        value: /api/products
-      method: POST
-    filters:
-    - type: RequestHeaderModifier
-      requestHeaderModifier:
-        add:
-        - name: X-Require-Auth
-          value: admin
-    backendRefs:
-    - name: product-api-service
-      port: 8084
-  
-  # カテゴリー検索
-  - matches:
-    - path:
-        type: RegularExpression
-        value: /api/products/category/.+
-      method: GET
-    backendRefs:
-    - name: product-api-service
-      port: 8084
-  
-  # ヘルスチェック
-  - matches:
-    - path:
-        type: Exact
-        value: /health
-      method: GET
-    backendRefs:
-    - name: product-api-service
+    - name: product-service
+      namespace: ec-backend
       port: 8084
     timeouts:
-      request: 5s
+      request: 15s

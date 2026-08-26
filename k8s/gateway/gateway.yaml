@@ -1,83 +1,38 @@
 apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway 
-metadata: 
+kind: Gateway
+metadata:
   name: ec-apigate-way
   namespace: ec-system
-#HTTPリスナー
+  labels:
+    app.kubernetes.io/name: ec-apigate-way
+    app.kubernetes.io/part-of: ec-microservices
 spec:
   gatewayClassName: ec-gateway-class
-  listeners: 
-  - name: http 
+  listeners:
+  - name: http
     protocol: HTTP
-    port: 80 
-    hostname: "*.ec-site.example.com"
-    allowedRoutes: 
-      namespaces: 
-        from: All
-
-  - name: https 
-    protocol: HTTPS
-    port: 443
-    hostname: "*.ec-site.example.com"
-    tls: 
-      mode: Terminate
-      certificateRefs:
-      - name: ec-tls-secret
-        kind: Secret 
-        namespace: ec-system
-    allowedRoutes: 
+    port: 80
+    allowedRoutes:
       namespaces:
         from: All
-  
-  - name: internal
-    protocol: HTTP 
-    port: 8080 
-    hostname: "*.ec-site.example.local"
-    allowedRoutes: 
-      namespaces:
-        from: Selector
-        selector: 
-          matchLabels: 
-            app.kubernetes.io/part-of: ec-microservices
-
-        
+---
 
 
-
-    
-        
-        
-
-
-
-    
-
-
-
-
-
-
-
-
-
-
-      
-
-
-
-    
-
-
-
-
-     
-        
-      
-
-
-
-    
-  
-
-
-
+apiVersion: v1
+kind: Service
+metadata:
+  name: ec-gateway-entry
+  namespace: envoy-gateway-system
+  labels:
+    app.kubernetes.io/name: ec-gateway-entry
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  type: ClusterIP
+  selector:
+    gateway.envoyproxy.io/owning-gateway-name: ec-apigate-way
+    gateway.envoyproxy.io/owning-gateway-namespace: ec-system
+  ports:
+  - name: http
+    port: 80
+    targetPort: 10080
+    protocol: TCP

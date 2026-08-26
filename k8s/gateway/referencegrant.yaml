@@ -1,66 +1,29 @@
+# HTTPRoute は ec-system に置き、参照先の Service は ec-backend / ec-frontend にある。
+# Gateway API では名前空間をまたぐ参照を ReferenceGrant で明示的に許可する必要がある。
 apiVersion: gateway.networking.k8s.io/v1beta1
 kind: ReferenceGrant
-metadata: 
+metadata:
   name: ec-backend-grant
-  namespace: ec-backend 
-spec: 
-  from: 
-  - group: gateway.networking.k8s.io
-    kind: HTTPRoute 
-    namespace: ec-system
-  to: 
-  - group: "" 
-    kind: Service 
----
-apiVersion: gateway.networking.k8s.io/v1beta1 
-kind: ReferenceGrant 
-metadata: 
-  name: ec-frontend-grant
-  namespace: ec-frontend
-spec: 
-  from: 
-  - group: gateway.networking.k8s.io
-    kind: HTTPRoute 
-    namespace: ec-system
-  to: 
-  - group: ""
-    kind: Service 
----
-apiVersion: gateway.networking.k8s.io/v1beta1 
-kind: ReferenceGrant 
-metadata: 
-  name: ec-frontend-grant
-  namespace: ec-frontend
-spec: 
-  from: 
-  - group: gateway.networking.k8s.io
-    kind: HTTPRoute 
-    namespace: ec-system
-  to: 
-  - group: ""
-    kind: Service
---- 
-apiVersion: gateway.networking.k8s.io/v1beta1
-kind: ReferenceGrant 
-metadata: 
-  name: ec-tls-grant
-  namespace: ec-system
-spec: 
-  from: 
+  namespace: ec-backend
+spec:
+  from:
   - group: gateway.networking.k8s.io
     kind: HTTPRoute
     namespace: ec-system
-  to: 
+  to:
   - group: ""
-    kind: Secret 
-    name: ec-tls-cert
-    
-
-
-
-
-
-
-  
-
-
+    kind: Service
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: ec-frontend-grant
+  namespace: ec-frontend
+spec:
+  from:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    namespace: ec-system
+  to:
+  - group: ""
+    kind: Service

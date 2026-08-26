@@ -8,7 +8,7 @@ metadata:
     app.kubernetes.io/part-of: ec-microservices
     app.kubernetes.io/version: "1.0.0"
 spec:
-  replicas: 3
+  replicas: 2
   selector:
     matchLabels:
       app.kubernetes.io/name: cart-api
@@ -22,103 +22,109 @@ spec:
       labels:
         app.kubernetes.io/name: cart-api
         app.kubernetes.io/part-of: ec-microservices
-        app.kubernetes.io/version: "v1.0.0"
-      annotations:
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "8084"
-        prometheus.io/path: "/metrics"
+        app.kubernetes.io/version: "1.0.0"
     spec:
-      # Pod全体の設定（ここに移動した）
-      restartPolicy: Always
       terminationGracePeriodSeconds: 30
-      
+      restartPolicy: Always
       containers:
       - name: cart-api
-        image: ec_site-cart-api:latest
+        image: ec-site/cart-api:dev
         imagePullPolicy: IfNotPresent
-        ports: 
-        - containerPort: 8084
+        ports:
+        - containerPort: 8085
           protocol: TCP
           name: http-cart
         env:
+        - name: PORT
+          value: "8085"
+        - name: APP_ENV
+          value: "production"
         - name: DATABASE_URL
           valueFrom:
             secretKeyRef:
               name: postgres-secret
               key: database-url
-    
+        # user-api が発行した JWT を検証するため同一の鍵を共有する
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: jwt-secret
+              key: jwt-secret
+        - name: RUST_LOG
+          value: "info,tower_http=info"
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
         resources:
           requests:
-            cpu: "100m"
-            memory: "128Mi"
+            cpu: "50m"
+            memory: "64Mi"
           limits:
             cpu: "500m"
-            memory: "512Mi"
-            #
+            memory: "256Mi"
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8085
+          periodSeconds: 2
+          failureThreshold: 30
         livenessProbe:
           httpGet:
-            path: /health 
+            path: /health
             port: 8085
-          initialDelaySeconds: 3
-          periodSeconds: 3
-          failureThreshold: 10
+          periodSeconds: 10
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /ready
             port: 8085
-          initialDelaySeconds: 5
-          periodSeconds: 3
-          failureThreshold: 10
+          periodSeconds: 5
+          failureThreshold: 3
         securityContext:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
           runAsUser: 1000
-          readOnlyRootFilesystem: true 
-          capabilities: 
+          readOnlyRootFilesystem: true
+          capabilities:
             drop:
             - ALL
         volumeMounts:
         - name: tmp
           mountPath: /tmp
-        - name: config
-          mountPath: /etc/config
-          readOnly: true
-        - name: secret
-          mountPath: /etc/secret
-          readOnly: true
         lifecycle:
-          postStart:
-            exec:
-              command: ["/bin/sh", "-c", "echo 'starting' > /tmp/message"]
           preStop:
             exec:
-              command: ["/bin/sh", "-c", "sleep 10"]
+              command: ["/bin/sh", "-c", "sleep 5"]
       volumes:
       - name: tmp
         emptyDir: {}
-      - name: config
-        configMap:
-          name: config-map
-      - name: secret
-        secret:
-          secretName: postgres-secret 
 ---
 apiVersion: v1
 kind: Service
 metadata:
+  name: cart-service
+  namespace: ec-backend
   labels:
     app.kubernetes.io/name: cart-api
     app.kubernetes.io/part-of: ec-microservices
-  name: cart-service
-  namespace: ec-backend
 spec:
   type: ClusterIP
   selector:
     app.kubernetes.io/name: cart-api
   ports:
-    - name: http
-      port: 8084
-      targetPort: 8084
-      protocol: TCP
-
-      
+  - name: http
+    port: 8085
+    targetPort: 8085
+    protocol: TCP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: cart-api-pdb
+  namespace: ec-backend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cart-api

@@ -1,0 +1,11 @@
+target/
+**/*.rs.bk
+*.pdb
+.env
+.env.*
+.git/
+.gitignore
+*.md
+Dockerfile
+.dockerignore
+.DS_Store

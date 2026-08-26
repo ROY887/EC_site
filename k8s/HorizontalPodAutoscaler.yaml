@@ -8,13 +8,13 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: product-api
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 2
+  maxReplicas: 6
   metrics:
-  - type: Resource 
-    resource: 
+  - type: Resource
+    resource:
       name: cpu
-      target: 
+      target:
         type: Utilization
         averageUtilization: 70
   behavior:
@@ -22,12 +22,8 @@ spec:
       stabilizationWindowSeconds: 300
       policies:
       - type: Pods
-        value: 4
+        value: 1
         periodSeconds: 60
-      - type: Percent
-        value: 10
-        periodSeconds: 60
-   
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
@@ -35,42 +31,36 @@ spec:
         value: 100
         periodSeconds: 15
       - type: Pods
-        value: 4
+        value: 2
         periodSeconds: 15
       selectPolicy: Max
-
---- 
-
+---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
   name: cart-api-scaler
-  namespace: ec-backend 
+  namespace: ec-backend
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
     name: cart-api
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 2
+  maxReplicas: 6
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
-        averageUtilization: 50
+        averageUtilization: 70
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
       - type: Pods
-        value: 4
+        value: 1
         periodSeconds: 60
-      - type: Percent
-        value: 10
-        periodSeconds: 60
-   
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
@@ -78,53 +68,9 @@ spec:
         value: 100
         periodSeconds: 15
       - type: Pods
-        value: 4
+        value: 2
         periodSeconds: 15
       selectPolicy: Max
-
---- 
-
-apiVersion: autoscaling/v2
-kind: HorizontalPodAutoscaler
-metadata:
-  name: frontend-scaler
-  namespace: ec-frontend
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: frontend
-  minReplicas: 3
-  maxReplicas: 10
-  metrics:
-  - type: Resource
-    resource:
-      name: cpu
-      target:
-        type: Utilization
-        averageUtilization: 50
-  behavior:
-    scaleDown:
-      stabilizationWindowSeconds: 300
-      policies:
-      - type: Pods
-        value: 4
-        periodSeconds: 60
-      - type: Percent
-        value: 10
-        periodSeconds: 60
-   
-    scaleUp:
-      stabilizationWindowSeconds: 0
-      policies:
-      - type: Percent
-        value: 100
-        periodSeconds: 15
-      - type: Pods
-        value: 4
-        periodSeconds: 15
-      selectPolicy: Max
-
 ---
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
@@ -136,26 +82,23 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: user-api
-  minReplicas: 3
-  maxReplicas: 10
+  minReplicas: 2
+  maxReplicas: 6
   metrics:
   - type: Resource
     resource:
       name: cpu
       target:
         type: Utilization
+        # bcrypt が CPU を使うため低めの閾値で早めにスケールさせる
         averageUtilization: 50
   behavior:
     scaleDown:
       stabilizationWindowSeconds: 300
       policies:
       - type: Pods
-        value: 4
+        value: 1
         periodSeconds: 60
-      - type: Percent
-        value: 10
-        periodSeconds: 60
-   
     scaleUp:
       stabilizationWindowSeconds: 0
       policies:
@@ -163,11 +106,40 @@ spec:
         value: 100
         periodSeconds: 15
       - type: Pods
-        value: 4
+        value: 2
         periodSeconds: 15
       selectPolicy: Max
-
-
-
-
-
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: frontend-scaler
+  namespace: ec-frontend
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: frontend
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max

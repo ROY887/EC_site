@@ -3,58 +3,41 @@ import { useState } from 'react';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import Header from './components/common/Header';
+import DemoNotice from './components/common/DemoNotice';
+import Footer from './components/common/Footer';
 import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import CartPage from './pages/CartPage';
+import PrivacyPage from './pages/PrivacyPage';
 
 function App() {
   const [showLogin, setShowLogin] = useState(false);
   const [showCart, setShowCart] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-
-  const handleSearch = (query) => {
-    setSearchQuery(query);
-  };
-
-  const handleOpenLogin = () => {
-    setShowLogin(true);
-  };
-
-  const handleCloseLogin = () => {
-    setShowLogin(false);
-  };
-
-  const handleOpenCart = () => {
-    setShowCart(true);
-  };
-
-  const handleCloseCart = () => {
-    setShowCart(false);
-  };
 
   return (
     <AuthProvider>
       <CartProvider>
-        <div className="min-h-screen bg-gray-100">
-          {/* ヘッダー */}
+        <div className="min-h-screen bg-gray-100 flex flex-col">
+          {/* デモサイトであることの明示 */}
+          <DemoNotice />
+
           <Header
-            onSearch={handleSearch}
-            onCartClick={handleOpenCart}
-            onLoginClick={handleOpenLogin}
+            onSearch={setSearchQuery}
+            onCartClick={() => setShowCart(true)}
+            onLoginClick={() => setShowLogin(true)}
           />
 
-          {/* メインコンテンツ */}
-          <HomePage searchQuery={searchQuery} />
+          <main className="flex-1">
+            <HomePage searchQuery={searchQuery} />
+          </main>
 
-          {/* ログインモーダル */}
-          {showLogin && (
-            <LoginPage onClose={handleCloseLogin} />
-          )}
+          <Footer onPrivacyClick={() => setShowPrivacy(true)} />
 
-          {/* カートモーダル */}
-          {showCart && (
-            <CartPage onClose={handleCloseCart} />
-          )}
+          {showLogin && <LoginPage onClose={() => setShowLogin(false)} />}
+          {showCart && <CartPage onClose={() => setShowCart(false)} />}
+          {showPrivacy && <PrivacyPage onClose={() => setShowPrivacy(false)} />}
         </div>
       </CartProvider>
     </AuthProvider>
@@ -62,4 +45,3 @@ function App() {
 }
 
 export default App;
-

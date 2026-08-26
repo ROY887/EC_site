@@ -1,0 +1,200 @@
+
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: ec-prometheusrule
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: ec-prometheusrule
+    app.kubernetes.io/part-of: ec-microservices
+    app.kubernetes.io/version: "1.0.0"
+spec:
+  groups:
+  - name: ec-availability
+    rules:
+    - alert: PodNotReady
+      expr: |
+        sum by (namespace, pod) (
+          kube_pod_status_ready{condition="false", namespace=~"ec-backend|ec-frontend"}
+          * on(namespace, pod) group_left()
+          (kube_pod_status_phase{phase="Running"} == 1)
+        ) > 0
+      for: 5m
+      labels:
+        severity: warning
+        team: backend
+      annotations:
+        summary: "Pod が Ready になっていません"
+        description: "{{ $labels.namespace }}/{{ $labels.pod }} が 5 分以上 Ready になっていません。"
+
+    - alert: PodCrashLooping
+      expr: |
+        increase(kube_pod_container_status_restarts_total{namespace=~"ec-backend|ec-frontend"}[15m]) > 3
+      for: 5m
+      labels:
+        severity: critical
+        team: backend
+      annotations:
+        summary: "Pod が再起動を繰り返しています"
+        description: "{{ $labels.namespace }}/{{ $labels.pod }} が直近15分で {{ $value | humanize }} 回再起動しました。"
+
+    - alert: DeploymentReplicasMismatch
+      expr: |
+        kube_deployment_spec_replicas{namespace=~"ec-backend|ec-frontend"}
+          != kube_deployment_status_replicas_available{namespace=~"ec-backend|ec-frontend"}
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "Deployment のレプリカ数が期待値と一致しません"
+        description: "{{ $labels.namespace }}/{{ $labels.deployment }} の利用可能レプリカが不足しています。"
+
+  - name: ec-resources
+    rules:
+    - alert: ContainerHighMemoryUsage
+      expr: |
+        sum by (namespace, pod) (
+          container_memory_working_set_bytes{namespace=~"ec-backend|ec-frontend", container!=""}
+        )
+        /
+        sum by (namespace, pod) (
+          kube_pod_container_resource_limits{resource="memory", namespace=~"ec-backend|ec-frontend"}
+        )
+        > 0.85
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "メモリ使用率が高い状態です"
+        description: "{{ $labels.namespace }}/{{ $labels.pod }} のメモリ使用率が {{ $value | humanizePercentage }} です。"
+
+    - alert: PersistentVolumeLowSpace
+      expr: |
+        kubelet_volume_stats_available_bytes{namespace=~"ec-backend|ec-monitoring"}
+        / kubelet_volume_stats_capacity_bytes{namespace=~"ec-backend|ec-monitoring"}
+        < 0.15
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "PVC の空き容量が少なくなっています"
+        description: "{{ $labels.namespace }}/{{ $labels.persistentvolumeclaim }} の空きが 15% を下回りました。"
+
+  - name: ec-backup
+    rules:
+    # バックアップは失敗しても静かに終わる。復旧が必要な日に初めて
+    # 気づくのが最悪なので、監視対象としての優先度が最も高い。
+    - alert: BackupNotSucceeded
+      expr: |
+        time() - max(kube_cronjob_status_last_successful_time{cronjob="db-backup"}) > 90000
+      for: 30m
+      labels:
+        severity: critical
+      annotations:
+        summary: "DB バックアップが 25 時間以上成功していません"
+        description: "db-backup CronJob は毎日 3:15 に実行されます。ジョブのログを確認してください。"
+
+    - alert: BackupJobFailed
+      expr: |
+        kube_job_status_failed{namespace="ec-backend", job_name=~"db-backup-.*"} > 0
+      for: 5m
+      labels:
+        severity: warning
+      annotations:
+        summary: "バックアップジョブが失敗しました"
+        description: "{{ $labels.job_name }} が失敗しています。"
+
+  - name: ec-node
+    rules:
+    # k3s はデータストアに SQLite を使うため、ノードのディスクが埋まると
+    # API サーバーが書き込めなくなりクラスタ全体が停止する。
+    # PVC 単位の監視では捉えられないので別に持つ。
+    - alert: NodeDiskSpaceLow
+      expr: |
+        node_filesystem_avail_bytes{mountpoint="/", fstype!="tmpfs"}
+        / node_filesystem_size_bytes{mountpoint="/", fstype!="tmpfs"}
+        < 0.15
+      for: 10m
+      labels:
+        severity: critical
+      annotations:
+        summary: "ノードのディスク空き容量が 15% を下回りました"
+        description: "残り {{ $value | humanizePercentage }}。埋まるとクラスタ全体が停止します。"
+
+    - alert: NodeMemoryPressure
+      expr: |
+        node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "ノードの空きメモリが 10% を下回りました"
+        description: "swap 無効のため、枯渇すると OOM Killer が即座に動きます。"
+
+  - name: ec-external
+    rules:
+    # probe_scope ラベルで内外を区別できる。
+    #   外部 NG / 内部 OK -> Cloudflare かトンネルの問題
+    #   外部 NG / 内部 NG -> アプリか DB の問題
+    - alert: BlackboxProbeFailed
+      expr: probe_success == 0
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "プローブが失敗しています: {{ $labels.instance }}"
+        description: "scope={{ $labels.probe_scope }} target={{ $labels.probe_target }} が 5 分以上失敗しています。"
+
+    - alert: BlackboxSlowResponse
+      expr: probe_duration_seconds > 3
+      for: 10m
+      labels:
+        severity: warning
+      annotations:
+        summary: "応答が遅くなっています: {{ $labels.instance }}"
+        description: "応答時間が {{ $value | humanizeDuration }} です（閾値 3 秒）。"
+
+    # 証明書は Cloudflare が管理しているが、期限切れは公開停止に直結する。
+    - alert: TlsCertExpiringSoon
+      expr: |
+        probe_ssl_earliest_cert_expiry - time() < 86400 * 14
+      for: 1h
+      labels:
+        severity: warning
+      annotations:
+        summary: "TLS 証明書の期限が 14 日以内です"
+        description: "{{ $labels.instance }} の証明書が間もなく期限切れになります。"
+
+  - name: ec-application
+    rules:
+    # Envoy の指標を使うため、アプリへの /metrics 実装は不要。
+    # メトリクス名は Envoy のバージョンで変わりうる。適用後に Prometheus の
+    # /graph で envoy_ を検索し、実際に存在する名前か確認すること。
+    - alert: HighErrorRate
+      expr: |
+        sum by (envoy_http_conn_manager_prefix) (
+          rate(envoy_http_downstream_rq_xx{envoy_response_code_class="5"}[5m])
+        )
+        /
+        sum by (envoy_http_conn_manager_prefix) (
+          rate(envoy_http_downstream_rq_xx[5m])
+        )
+        > 0.05
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "5xx の比率が高い状態です"
+        description: "エラー率が {{ $value | humanizePercentage }} です（閾値 5%）。"
+
+    # トンネルが切れると、Pod が全て Running でもサイトへ到達できない。
+    # クラスタ内の他の指標では検知できない故障モード。
+    - alert: TunnelConnectionsLow
+      expr: |
+        sum(cloudflared_tunnel_ha_connections) < 2
+      for: 5m
+      labels:
+        severity: critical
+      annotations:
+        summary: "Cloudflare Tunnel のコネクションが不足しています"
+        description: "現在 {{ $value }} 本。0 になるとサイトが外部から到達不能になります。"

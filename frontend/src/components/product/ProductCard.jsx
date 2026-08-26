@@ -22,7 +22,7 @@ export default function ProductCard({ product }) {
       await addToCart(product, 1);
       setTimeout(() => setIsAdding(false), 1000);
     } catch (err) {
-      setError('追加に失敗しました');
+      setError(err.message || '追加に失敗しました');
       setIsAdding(false);
     }
   };
@@ -33,10 +33,13 @@ export default function ProductCard({ product }) {
       <div className="relative overflow-hidden bg-gray-100">
         <img
           src={
-             product.image_url && !product.image_url.includes('via.placeholder.com')
+            product.image_url && product.image_url.startsWith('/')
               ? product.image_url
-              : 'https://placehold.co/300x300'
-}
+              : '/images/placeholder.svg'
+          }
+          onError={(e) => {
+            e.currentTarget.src = '/images/placeholder.svg';
+          }}
           alt={product.name}
           className="w-full h-56 object-cover group-hover:scale-110 transition-transform duration-300"
         />
@@ -89,7 +92,7 @@ export default function ProductCard({ product }) {
         {/* 価格 */}
         <div className="flex items-baseline gap-2 mb-3">
           <span className="text-2xl font-bold text-gray-900">
-            ¥{product.price.toLocaleString()}
+            ¥{Number(product.price).toLocaleString()}
           </span>
         </div>
 

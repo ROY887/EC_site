@@ -3,16 +3,16 @@ kind: Deployment
 metadata:
   name: frontend
   namespace: ec-frontend
-  labels: 
-    app.kubernetes.io/name: frontend 
+  labels:
+    app.kubernetes.io/name: frontend
     app.kubernetes.io/part-of: ec-microservices
     app.kubernetes.io/version: "1.0.0"
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app.kubernetes.io/name: frontend 
-  strategy: 
+      app.kubernetes.io/name: frontend
+  strategy:
     type: RollingUpdate
     rollingUpdate:
       maxSurge: 1
@@ -22,115 +22,97 @@ spec:
       labels:
         app.kubernetes.io/name: frontend
         app.kubernetes.io/part-of: ec-microservices
-        app.kubernetes.io/version: "1.0.0" 
-      annotations: 
-        prometheus.io/path: "/metrics"
-        prometheus.io/scrape: "true"
-        prometheus.io/port: "5173"
-    
+        app.kubernetes.io/version: "1.0.0"
     spec:
-      terminationGracePeriodSeconds:  30
+      terminationGracePeriodSeconds: 30
       restartPolicy: Always
       containers:
       - name: frontend
-        image: ec_site-frontend:latest
+        image: ec-site/frontend:dev
+        imagePullPolicy: IfNotPresent
         ports:
-        - containerPort: 5173
-          protocol: TCP  
-          name: http-frontend 
-        env: 
-        - name: VITE_PRODUCT_API_URL 
-          value: "https://api.ec_site.example.com/api/product"
-        - name: VITE_CART_API_URL
-          value: "https://api.ec_site.example.com/api/cart"
-        - name: VITE_USER_API_URL
-          value: "https://api.ec_site.example.com/api/cart"
-        - name: VITE_DEBUG
-          value: "false"
-        - name: NODE_ENV
-          value: production
-
+        - containerPort: 8080
+          protocol: TCP
+          name: http-frontend
         resources:
-          requests: 
-            cpu: "100m"
-            memory: "128Mi"
+          requests:
+            cpu: "20m"
+            memory: "32Mi"
           limits:
-            cpu: "500m"
-            memory: "512Mi" 
-        livenessProbe: 
+            cpu: "200m"
+            memory: "128Mi"
+        startupProbe:
           httpGet:
-            path: /
-            port: 5173
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          failureThreshold: 30
-        readinessProbe: 
+            path: /healthz
+            port: 8080
+          periodSeconds: 2
+          failureThreshold: 15
+        livenessProbe:
           httpGet:
-            path: /
-            port: 5173
-          initialDelaySeconds: 10
+            path: /healthz
+            port: 8080
+          periodSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: 8080
           periodSeconds: 5
-          failureThreshold: 30
-          
-        securityContext: 
+          failureThreshold: 3
+        securityContext:
           allowPrivilegeEscalation: false
           runAsNonRoot: true
-          runAsUser: 1000
-          readOnlyRootFilesystem: true 
+          # nginx-unprivileged イメージの既定ユーザー
+          runAsUser: 101
+          readOnlyRootFilesystem: true
           capabilities:
             drop:
             - ALL
-
-        volumeMounts: 
+        volumeMounts:
+        # readOnlyRootFilesystem のため nginx の書き込み先を明示的に用意する
         - name: tmp
-          mountPath: /tmp 
-        - name: config 
-          mountPath: /etc/config
+          mountPath: /tmp
+        - name: nginx-cache
+          mountPath: /var/cache/nginx
+        - name: nginx-run
+          mountPath: /var/run
         lifecycle:
-          postStart:
-            exec:
-             command: ["/bin/sh", "-c", "echo 'starting' > /tmp/message"]
           preStop:
             exec:
-              command: ["/bin/sh", "-c", "sleep 10"]
-
+              command: ["/bin/sh", "-c", "sleep 5"]
       volumes:
-      - name: tmp 
+      - name: tmp
         emptyDir: {}
-      - name: config 
-        configMap:
-          name: config_map
-
+      - name: nginx-cache
+        emptyDir: {}
+      - name: nginx-run
+        emptyDir: {}
 ---
 apiVersion: v1
 kind: Service
-metadata: 
-  namespace: ec-frontend
+metadata:
   name: frontend-service
+  namespace: ec-frontend
   labels:
     app.kubernetes.io/name: frontend
     app.kubernetes.io/part-of: ec-microservices
-spec: 
+spec:
   type: ClusterIP
-  ports: 
-  - port: 5173
-    targetPort: 5173
-    protocol: TCP 
-  selector: 
+  selector:
     app.kubernetes.io/name: frontend
-
-
-          
-
-
-
-        
-          
-
-
-
-
-
-
-        
-      
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: frontend-pdb
+  namespace: ec-frontend
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: frontend

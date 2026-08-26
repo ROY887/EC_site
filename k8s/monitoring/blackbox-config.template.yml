@@ -1,0 +1,87 @@
+# このファイルはGit追跡対象。実値は scripts/create-secrets.sh が
+# __PROBE_EMAIL__ / __PROBE_PASSWORD__ を置換して Secret として登録する。
+# 認証情報を含むため ConfigMap ではなく Secret に置く。
+# 全モジュールで preferred_ip_protocol: ip4 を明示している理由は
+# このクラスタは IPv4 のみ (Pod CIDR 10.42.0.0/24)。Cloudflare は A と AAAA の
+# 両方を返すため、既定の ip6 優先のままだとPod から到達できないIPv6アドレスを
+# 選んでしまう。
+
+modules:
+
+# 内部プローブ: Gateway 直叩き（クラスタ内は平文 HTTP）
+# 外部プローブと結果を比べると障害箇所を切り分けられる。
+  http_internal:
+    prober: http
+    timeout: 5s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      preferred_ip_protocol: "ip4"
+      fail_if_not_ssl: false
+
+
+  #外部プローブ: 公開経路全体（Cloudflare → トンネル → Gateway → nginx）
+  #fail_if_not_ssl: true は HTTPS から HTTP へのダウングレード検知のため。
+  #follow_redirectsと併用しないと、リダイレクトでの降格を見逃す。
+  https_external:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      preferred_ip_protocol: "ip4"
+      fail_if_not_ssl: true
+      follow_redirects: true
+      headers:
+        User-Agent: "blackbox-exporter/ec-site"
+  # 商品一覧: ステータスコードだけでは不十分な例。DBのデータが消えても 200 と [] が返るため、本文まで検証する。
+  https_products:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [200]
+      preferred_ip_protocol: "ip4"
+      fail_if_not_ssl: true
+      fail_if_body_matches_regexp:
+        - '^\s*\[\s*\]\s*$'
+      fail_if_body_not_matches_regexp:
+        - '"id"\s*:'
+      headers:
+        User-Agent: "blackbox-exporter/ec-site"
+
+  # ------------------------------------------------------------------
+  # ログイン: 1 リクエストで Gateway → user-api → PostgreSQL → bcrypt →
+  # JWT 発行 まで一気に検証できる。書き込みを伴わないので DB は汚れない。
+  
+  # Content-Type は必須。axum の Json エクストラクタはこれが無いと
+  # 本文を読まず 415 Unsupported Media Type を返す。
+  # ------------------------------------------------------------------
+  https_login:
+    prober: http
+    timeout: 10s
+    http:
+      method: POST
+      valid_status_codes: [200]
+      preferred_ip_protocol: "ip4"
+      fail_if_not_ssl: true
+      headers:
+        Content-Type: application/json
+        User-Agent: "blackbox-exporter/ec-site"
+      body: '{"email":"__PROBE_EMAIL__","password":"__PROBE_PASSWORD__"}'
+      # 200 でもトークンが無ければ異常
+      fail_if_body_not_matches_regexp:
+        - '"token"\s*:\s*"[^"]+"'
+
+  # 認証ミドルウェアの生存確認: 401 が返ることが正常。
+  # 200 が返ったら認証が外れているということなので、異常。
+  https_expect_401:
+    prober: http
+    timeout: 10s
+    http:
+      method: GET
+      valid_status_codes: [401]
+      preferred_ip_protocol: "ip4"
+      fail_if_not_ssl: true
+      headers:
+        User-Agent: "blackbox-exporter/ec-site"

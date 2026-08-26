@@ -1,0 +1,60 @@
+# インフラ層のメトリクス収集
+#
+# アプリに /metrics を実装しなくても、この 2 つから実質的に
+# アプリケーション相当の指標が得られる。
+#
+# ec-system と envoy-gateway-system には NetworkPolicy が無いため、
+# ec-monitoring からのスクレイプは追加設定なしで通る。
+# （ec-backend / ec-frontend は既定拒否なのでスクレイプできない）
+
+# ------------------------------------------------------------------
+# Envoy: HTTPRoute 単位のリクエスト数・レイテンシ・ステータスコード
+# Rust を計装せずにゴールデンシグナルが取れる。
+# ------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: envoy-podmonitor
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: envoy-podmonitor
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  namespaceSelector:
+    matchNames:
+    - envoy-gateway-system
+  selector:
+    matchLabels:
+      gateway.envoyproxy.io/owning-gateway-name: ec-apigate-way
+      gateway.envoyproxy.io/owning-gateway-namespace: ec-system
+  podMetricsEndpoints:
+  - port: metrics          # containerPort 19001
+    path: /stats/prometheus
+    interval: 30s
+    scrapeTimeout: 10s
+---
+# ------------------------------------------------------------------
+# cloudflared: トンネルの接続状態
+# これが 0 になると、Pod が全て Running でもサイトには到達できない。
+# クラスタ内の他の指標では絶対に検知できない故障モード。
+# ------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: cloudflared-podmonitor
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: cloudflared-podmonitor
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  namespaceSelector:
+    matchNames:
+    - ec-system
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: cloudflared
+  podMetricsEndpoints:
+  - port: metrics          # containerPort 2000
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s

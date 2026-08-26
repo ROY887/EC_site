@@ -1,67 +1,83 @@
 // src/api/ApiService.js
 // クラスベースAPIサービス
 
-import { 
-  API_URLS, 
-  REQUEST_TIMEOUT, 
-  logApiCall, 
-  logApiResponse, 
-  logApiError 
+import {
+  API_URLS,
+  REQUEST_TIMEOUT,
+  TOKEN_STORAGE_KEY,
+  logApiCall,
+  logApiResponse,
+  logApiError,
 } from './config';
 
+/**
+ * 認証トークンは複数のサービスインスタンスで共有する。
+ * localStorage に保存し、リロード後も維持する。
+ *
+ * 注意: localStorage は XSS でトークンを読み出されうる。
+ * 本番サービス化する際は httpOnly Cookie への移行を検討すること。
+ */
+const tokenStore = {
+  get() {
+    try {
+      return localStorage.getItem(TOKEN_STORAGE_KEY);
+    } catch {
+      return null;
+    }
+  },
+  set(token) {
+    try {
+      if (token) localStorage.setItem(TOKEN_STORAGE_KEY, token);
+      else localStorage.removeItem(TOKEN_STORAGE_KEY);
+    } catch {
+      /* プライベートモード等で保存できない場合は無視 */
+    }
+  },
+};
 
+/** 401 を受け取ったときに呼ばれるハンドラ（AuthContext が登録する） */
+let onUnauthorized = null;
+export function setUnauthorizedHandler(fn) {
+  onUnauthorized = fn;
+}
 
-
- // 基底APIサービスクラス
+// 基底APIサービスクラス
 class ApiService {
   constructor(baseURL) {
     this.baseURL = baseURL;
-    this.token = null;
     this.defaultHeaders = {
       'Content-Type': 'application/json',
     };
   }
 
-
-
-  
-  //認証トークンを設定
   setToken(token) {
-    this.token = token;
+    tokenStore.set(token);
     return this;
   }
 
-  
-   
-  // 認証トークンをクリア
   clearToken() {
-    this.token = null;
+    tokenStore.set(null);
     return this;
   }
 
-  
-   //ヘッダーを取得
   getHeaders(customHeaders = {}) {
     const headers = {
       ...this.defaultHeaders,
       ...customHeaders,
     };
 
-    if (this.token) {
-      headers['Authorization'] = `Bearer ${this.token}`;
+    const token = tokenStore.get();
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     return headers;
   }
 
-  
-   // 汎用リクエストメソッド
-   
   async request(endpoint, options = {}) {
     const url = `${this.baseURL}${endpoint}`;
     const method = options.method || 'GET';
-    
-    // リクエストログ
+
     logApiCall(method, url, options.body ? JSON.parse(options.body) : null);
 
     const config = {
@@ -73,7 +89,6 @@ class ApiService {
     try {
       const response = await fetch(url, config);
 
-      // レスポンスの処理
       const contentType = response.headers.get('content-type');
       let data;
 
@@ -83,63 +98,68 @@ class ApiService {
         data = await response.text();
       }
 
-      // エラーレスポンスの処理
       if (!response.ok) {
+        // バックエンドは { "error": "..." } 形式で返す
+        const message =
+          (data && typeof data === 'object' && data.error) ||
+          (typeof data === 'string' && data) ||
+          `HTTP ${response.status}: ${response.statusText}`;
+
         const error = {
           status: response.status,
           statusText: response.statusText,
-          data: data,
-          message: data?.message || data || `HTTP ${response.status}: ${response.statusText}`,
-          url: url,
-          method: method,
+          data,
+          message,
+          url,
+          method,
         };
-        
+
+        // 認証切れは呼び出し側に伝播させつつ、セッションを破棄する
+        if (response.status === 401) {
+          tokenStore.set(null);
+          if (onUnauthorized) onUnauthorized();
+        }
+
         logApiError(method, url, error);
         throw error;
       }
 
-      // 成功ログ
       logApiResponse(method, url, data);
-      
       return data;
     } catch (error) {
-      // タイムアウトエラー
       if (error.name === 'TimeoutError') {
         const timeoutError = {
           status: 408,
           message: 'リクエストがタイムアウトしました',
-          url: url,
-          method: method,
+          url,
+          method,
           originalError: error,
         };
         logApiError(method, url, timeoutError);
         throw timeoutError;
       }
 
-      // ネットワークエラー
-      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+      if (error.name === 'TypeError') {
         const networkError = {
           status: 0,
-          message: 'ネットワークエラー: APIサーバーに接続できません',
-          url: url,
-          method: method,
+          message: 'ネットワークエラー: サーバーに接続できません',
+          url,
+          method,
           originalError: error,
         };
         logApiError(method, url, networkError);
         throw networkError;
       }
 
-      // その他のエラー（既にフォーマット済み）
-      if (error.status) {
+      if (error.status !== undefined) {
         throw error;
       }
 
-      // 予期しないエラー
       const unexpectedError = {
         status: 500,
         message: error.message || '予期しないエラーが発生しました',
-        url: url,
-        method: method,
+        url,
+        method,
         originalError: error,
       };
       logApiError(method, url, unexpectedError);
@@ -147,19 +167,10 @@ class ApiService {
     }
   }
 
-  
-   // GET リクエスト
-   
   get(endpoint, options = {}) {
-    return this.request(endpoint, {
-      method: 'GET',
-      ...options,
-    });
+    return this.request(endpoint, { method: 'GET', ...options });
   }
 
-  
-  //  POST リクエスト
-   
   post(endpoint, data, options = {}) {
     return this.request(endpoint, {
       method: 'POST',
@@ -168,8 +179,6 @@ class ApiService {
     });
   }
 
-   // PUT リクエスト
-   
   put(endpoint, data, options = {}) {
     return this.request(endpoint, {
       method: 'PUT',
@@ -178,9 +187,6 @@ class ApiService {
     });
   }
 
-  
-  //  DELETE リクエスト
-   
   delete(endpoint, data = null, options = {}) {
     return this.request(endpoint, {
       method: 'DELETE',
@@ -191,36 +197,21 @@ class ApiService {
 }
 
 // ========================================
-// Product API Service
+// Product API Service（参照のみ公開）
 // ========================================
 class ProductService extends ApiService {
   constructor() {
     super(API_URLS.PRODUCT);
   }
 
-  // ヘルスチェック
-  healthCheck = () => this.get('/health');
-
-  // 商品一覧取得
   getAll = () => this.get('/products');
 
-  // 商品詳細取得
   getById = (id) => this.get(`/products/${id}`);
 
-  // カテゴリで検索
-  getByCategory = (category) => this.get(`/products/category/${category}`);
+  getByCategory = (category) =>
+    this.get(`/products/category/${encodeURIComponent(category)}`);
 
-  // キーワード検索
   search = (keyword) => this.get(`/products/search?q=${encodeURIComponent(keyword)}`);
-
-  // 商品作成（管理者用）
-  create = (productData) => this.post('/products', productData);
-
-  // 商品更新（管理者用）
-  update = (id, updates) => this.put(`/products/${id}`, updates);
-
-  // 商品削除（管理者用）
-  delete = (id) => this.delete(`/products/${id}`);
 }
 
 // ========================================
@@ -231,85 +222,51 @@ class UserService extends ApiService {
     super(API_URLS.USER);
   }
 
-  // ヘルスチェック
-  healthCheck = () => this.get('/health');
+  signUp = (username, email, password) =>
+    this.post('/users', { username, email, password });
 
-  // ユーザー登録
-  signUp = async (username, email, password) => {
-    const response = await this.post('/users', { username, email, password });
-    return response;
-  };
-
-  // ログイン
   login = async (email, password) => {
     const response = await this.post('/login', { email, password });
-    
-    // ログイン成功時の処理（トークンがあれば設定）
-    // Rustバックエンドのレスポンス構造に合わせて調整してください
-    // if (response.token) {
-    //   this.setToken(response.token);
-    // }
-    
+
+    if (response.token) {
+      this.setToken(response.token);
+    }
+
     return response;
   };
 
-  // ログアウト
   logout = () => {
     this.clearToken();
   };
 
-  // ユーザー情報取得
   getById = (id) => this.get(`/users/${id}`);
 
-  // 全ユーザー取得（開発用）
-  getAll = () => this.get('/users');
-
-  // ユーザー情報更新
   update = (id, updates) => this.put(`/users/${id}`, updates);
 
-  // ユーザー削除
   delete = (id) => this.delete(`/users/${id}`);
 }
 
+// ========================================
 // Cart API Service
+//
+// 対象ユーザーは JWT から導出されるため、user_id は送らない。
+// ========================================
 class CartService extends ApiService {
   constructor() {
     super(API_URLS.CART);
   }
 
-  // ヘルスチェック
-  healthCheck = () => this.get('/health');
+  getCart = () => this.get('/cart');
 
-  // カートに商品を追加
-  add = (userId, productId, quantity = 1) => 
-    this.post('/cart/add', {
-      id: null, // バックエンドで自動生成
-      user_id: userId,
-      product_id: productId,
-      quantity: quantity,
-    });
+  add = (productId, quantity = 1) =>
+    this.post('/cart/add', { product_id: productId, quantity });
 
-  // カート取得
-  getUser = (userId) => this.get(`/cart/${userId}`);
+  update = (productId, quantity) =>
+    this.put('/cart/update', { product_id: productId, quantity });
 
-  // 商品数量を更新
-  update = (userId, productId, quantity) => 
-    this.put('/cart/update', {
-      user_id: userId,
-      product_id: productId,
-      quantity: quantity,
-    });
+  remove = (productId) => this.delete('/cart/remove', { product_id: productId });
 
-  // カートから商品を削除
-  remove = (userId, productId) => 
-    this.delete('/cart/remove', {
-      user_id: userId,
-      product_id: productId,
-    });
-
-  // カートを全削除
-  clear = (userId) => this.delete(`/cart/${userId}`);
-
+  clear = () => this.delete('/cart');
 }
 
 // シングルトンインスタンスをエクスポート
@@ -317,17 +274,8 @@ export const productApi = new ProductService();
 export const userApi = new UserService();
 export const cartApi = new CartService();
 
-// デフォルトエクスポート
 export default {
   product: productApi,
   user: userApi,
   cart: cartApi,
 };
-
-
-
-
-
-
-
-

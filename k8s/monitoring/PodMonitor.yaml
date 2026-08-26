@@ -1,3 +1,16 @@
+# 【未適用】このファイルは現時点では適用しないこと。
+#
+# 各サービスの /metrics はまだ実装されていない（nginx にも存在しない）。
+# 適用すると常時 down のターゲットが 4 つ増え、Grafana とアラートが汚れる。
+#
+# 有効化する条件:
+#   1. product/user/cart-api に axum-prometheus 等で /metrics を実装する
+#   2. フロントは nginx の stub_status + nginx-prometheus-exporter が必要
+#   3. ec-backend / ec-frontend の NetworkPolicy に ec-monitoring からの
+#      ingress を追加する（現在は envoy-gateway-system からのみ許可）
+#
+# それまでのアプリ相当の指標は、Envoy のメトリクス（podmonitor-infra.yaml）で
+# 代替している。
 apiVersion: monitoring.coreos.com/v1
 kind: PodMonitor
 metadata: 

@@ -1,59 +1,74 @@
-use axum::{Router, routing::{get,post , put, delete}};
+use axum::{
+    Router, middleware,
+    routing::{delete, get, post, put},
+};
 use dotenvy::dotenv;
-use std::env;
 use std::net::SocketAddr;
-use tokio::net::TcpListener;
-use tower_http::cors::CorsLayer;
-use tower_http::cors::Any;
+use tower_http::trace::TraceLayer;
+use tracing_subscriber::{EnvFilter, layer::SubscriberExt, util::SubscriberInitExt};
 
-
-
+mod auth;
+mod db;
+mod error;
 mod handlers;
 mod models;
-mod db;
-//非同期処理は実行を並列して行いたいの1の実行をfutureという値を返す。furtureはすべての実行を終えたときに実行した時の実際の値を返すため、途中で実行した時の値が欲しい時はawaitを使う
+
+fn app_port() -> u16 {
+    std::env::var("PORT")
+        .ok()
+        .and_then(|p| p.parse().ok())
+        .unwrap_or(8085)
+}
+
+fn init_tracing() {
+    tracing_subscriber::registry()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "info,tower_http=debug".into()))
+        .with(tracing_subscriber::fmt::layer().json())
+        .init();
+}
+
 #[tokio::main]
 async fn main() {
     dotenv().ok();
+    init_tracing();
 
-    let db_url=env::var("DATABASE_URL").expect("database_url no set");
-    println!("DB URL = {}", db_url);
+    // JWT_SECRET の検証を起動時に済ませる
+    let _ = auth::get_jwt_secret();
 
-    let pool = db::init_db().await.expect("DB接続に失敗しました");   //awaitとは非同期処理を行ったときに、1つのfutureから実際の実行を行うためのもの
+    let pool = db::init_db().await.expect("DB接続に失敗しました");
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
-    let app = Router::new()
+    // カート操作は全て認証必須。対象ユーザーは JWT から導出するため
+    // リクエストで user_id を指定することはできない。
+    let protected = Router::new()
+        .route("/cart", get(handlers::get_cart))
+        .route("/cart", delete(handlers::clear_cart))
         .route("/cart/add", post(handlers::add_item))
-        .route("/health",get(handlers::health_check))
-        .route("/ready",get(handlers::db_ready_check))
-        .route("/cart/:user_id",get(handlers::get_cart))
-        .route("/cart/:user_id", delete(handlers::clear_cart))
         .route("/cart/update", put(handlers::update_item))
         .route("/cart/remove", delete(handlers::remove_item))
-        .layer(cors)
+        .layer(middleware::from_fn(auth::require_auth));
+
+    let public = Router::new()
+        .route("/health", get(handlers::health_check))
+        .route("/ready", get(handlers::db_ready_check));
+
+    let app = public
+        .merge(protected)
+        .layer(TraceLayer::new_for_http())
         .with_state(pool);
 
-    let addr = SocketAddr::from(([0 , 0 , 0 , 0],8085));
+    let app = match std::env::var("APP_ENV").as_deref() {
+        Ok("production") => app,
+        _ => app.layer(
+            tower_http::cors::CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods(tower_http::cors::Any)
+                .allow_headers(tower_http::cors::Any),
+        ),
+    };
+
+    let addr = SocketAddr::from(([0, 0, 0, 0], app_port()));
+    tracing::info!(%addr, "cart-api listening");
+
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-
-    println!("server running on http://{}",addr);
-    println!("cart-api running on http://{}", addr);
-    println!("Available endpoints:");
-    println!("  GET    /health");
-    println!("  GET    /ready");
-    println!("  POST   /cart/add");
-    println!("  GET    /cart/:user_id");
-    println!("  PUT    /cart/update");
-    println!("  DELETE /cart/remove");
-    println!("  DELETE /cart/:user_id");
-
-    axum::serve(listener, app)//
-        .await
-        .unwrap();   //unwrapはResult型などの値がOKである前提で動いているため、もしNoneやErrだった場合は、panic!マクロが呼ばれてプログラムがクラッシュする
-
+    axum::serve(listener, app).await.unwrap();
 }
-

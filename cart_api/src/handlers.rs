@@ -1,175 +1,130 @@
-use axum::{extract::{Path, State}, Json, response::IntoResponse, http::StatusCode};
-use crate::{models::CartItem, db::DbPool};
+use axum::{Extension, Json, extract::State, http::StatusCode, response::IntoResponse};
 
-use uuid::Uuid;
-use serde::{Serialize, Deserialize};
-use axum::debug_handler;
-use sqlx:: {Pool, Postgres};
-// use argon2::{
-//     password_hash::{rand_core::Osrng, SaltString, PasswordHasher},
-//     Argon2,
-// };
+use crate::auth::Claims;
+use crate::db::DbPool;
+use crate::error::AppError;
+use crate::models::{AddCartItem, CartItem, RemoveCartItem, UpdateCartItem};
 
-#[derive(Serialize, Debug, Deserialize, sqlx::FromRow)]
-pub struct CartItemResponse {
-    pub id: Uuid,
-    pub user_id: Uuid,
-    pub product_id: Uuid,
-    pub quantity: i32,
+/// 1 商品あたりの上限数量
+const MAX_QUANTITY: i32 = 99;
+
+const CART_COLUMNS: &str = "id, user_id, product_id, quantity";
+
+fn validate_quantity(quantity: i32) -> Result<(), AppError> {
+    if quantity < 1 {
+        return Err(AppError::BadRequest("数量は1以上である必要があります".to_string()));
+    }
+    if quantity > MAX_QUANTITY {
+        return Err(AppError::BadRequest(format!(
+            "数量は{MAX_QUANTITY}以下にしてください"
+        )));
+    }
+    Ok(())
 }
 
-#[derive(Debug,Serialize,Deserialize)]
-pub struct Claims{
-    sub: String,  //ユーザーIDなど
-    exp: usize,  //有効期限
+pub async fn health_check() -> impl IntoResponse {
+    "cart-api is healthy"
 }
 
-#[derive(Deserialize)]
-pub struct UpdateCartItem {
-    pub user_id: Uuid,
-    pub product_id: Uuid,
-    pub quantity: i32,
-}
-
-#[derive(Deserialize)]
-pub struct RemoveCartItem {
-    pub user_id: Uuid,
-    pub product_id: Uuid,
-}
-
-pub async fn health_check() -> impl IntoResponse{
-    "cart-api is running"
-}
-#[debug_handler]
-pub async fn db_ready_check(
-    State(pool): State<DbPool>
-) -> impl IntoResponse {
-    match sqlx::query("SELECT 1")
-    .execute(&pool)
-    .await {
-        Ok(_) => {
-            StatusCode::OK
-        }
+/// レディネスチェック（DB 到達性）
+pub async fn db_ready_check(State(pool): State<DbPool>) -> impl IntoResponse {
+    match sqlx::query("SELECT 1").execute(&pool).await {
+        Ok(_) => StatusCode::OK,
         Err(e) => {
-            eprintln!("Error log:{}",e);
+            tracing::error!(error = %e, "readiness check failed");
             StatusCode::SERVICE_UNAVAILABLE
         }
-    };
-
-}
-
-
-//カートに商品を追加
-#[debug_handler]
-pub async fn add_item(
-    State(pool): State<DbPool>,
-    Json(payload): Json<CartItem>
-) -> Result<impl IntoResponse, String> {
-    // 既に同じ商品がカートにある場合は数量を増やす
-    let existing = sqlx::query_as::<_, CartItemResponse>(
-        "SELECT id, user_id, product_id, quantity FROM cart_items 
-         WHERE user_id = $1 AND product_id = $2"
-    )
-    .bind(&payload.user_id)
-    .bind(&payload.product_id)
-    .fetch_optional(&pool)
-    .await
-    .map_err(|e| e.to_string())?;
-
-    if let Some(item) = existing {
-        // 既存アイテムの数量を増やす
-        let updated = sqlx::query_as::<_, CartItemResponse>(
-            "UPDATE cart_items SET quantity = quantity + $1 
-             WHERE user_id = $2 AND product_id = $3 
-             RETURNING id, user_id, product_id, quantity"
-        )
-        .bind(&payload.quantity)
-        .bind(&payload.user_id)
-        .bind(&payload.product_id)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
-        
-        Ok(Json(updated))
-    } else {
-        // 新規追加
-        let cart = sqlx::query_as::<_, CartItemResponse>(
-            "INSERT INTO cart_items (id, user_id, product_id, quantity) 
-             VALUES ($1, $2, $3, $4) 
-             RETURNING id, user_id, product_id, quantity"
-        )
-        .bind(&Uuid::new_v4())
-        .bind(&payload.user_id)
-        .bind(&payload.product_id)
-        .bind(&payload.quantity)
-        .fetch_one(&pool)
-        .await
-        .map_err(|e| e.to_string())?;
-        
-        Ok(Json(cart))
     }
 }
 
-// ユーザーのカート全体を取得
-#[debug_handler]
+/// 認証ユーザーのカートを取得
 pub async fn get_cart(
     State(pool): State<DbPool>,
-    Path(user_id): Path<Uuid>
-) -> Result<impl IntoResponse, String> {
-    let items = sqlx::query_as::<_, CartItemResponse>(
-        "SELECT id, user_id, product_id, quantity FROM cart_items WHERE user_id = $1"
-    )
-    .bind(&user_id)
-    .fetch_all(&pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<Vec<CartItem>>, AppError> {
+    let user_id = claims.user_id()?;
+
+    let sql = format!("SELECT {CART_COLUMNS} FROM cart_items WHERE user_id = $1 ORDER BY created_at");
+    let items = sqlx::query_as::<_, CartItem>(&sql)
+        .bind(user_id)
+        .fetch_all(&pool)
+        .await?;
 
     Ok(Json(items))
 }
 
-// カート内の商品数量を更新
-#[debug_handler]
-pub async fn update_item(
+/// カートに商品を追加（既にあれば数量を加算）
+pub async fn add_item(
     State(pool): State<DbPool>,
-    Json(payload): Json<UpdateCartItem>
-) -> Result<impl IntoResponse, String> {
-    if payload.quantity <= 0 {
-        return Err("数量は1以上である必要があります".to_string());
-    }
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<AddCartItem>,
+) -> Result<Json<CartItem>, AppError> {
+    let user_id = claims.user_id()?;
+    validate_quantity(payload.quantity)?;
 
-    let updated = sqlx::query_as::<_, CartItemResponse>(
-        "UPDATE cart_items SET quantity = $1 
-         WHERE user_id = $2 AND product_id = $3 
-         RETURNING id, user_id, product_id, quantity"
-    )
-    .bind(&payload.quantity)
-    .bind(&payload.user_id)
-    .bind(&payload.product_id)
-    .fetch_one(&pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    // UNIQUE(user_id, product_id) を利用した upsert。
+    // 加算後も上限を超えないよう LEAST で丸める。
+    let sql = format!(
+        "INSERT INTO cart_items (id, user_id, product_id, quantity)
+         VALUES (gen_random_uuid(), $1, $2, $3)
+         ON CONFLICT (user_id, product_id)
+         DO UPDATE SET quantity = LEAST(cart_items.quantity + EXCLUDED.quantity, {MAX_QUANTITY})
+         RETURNING {CART_COLUMNS}"
+    );
 
-    Ok(Json(updated))
+    let item = sqlx::query_as::<_, CartItem>(&sql)
+        .bind(user_id)
+        .bind(payload.product_id)
+        .bind(payload.quantity)
+        .fetch_one(&pool)
+        .await?;
+
+    Ok(Json(item))
 }
 
+/// カート内の数量を更新
+pub async fn update_item(
+    State(pool): State<DbPool>,
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<UpdateCartItem>,
+) -> Result<Json<CartItem>, AppError> {
+    let user_id = claims.user_id()?;
+    validate_quantity(payload.quantity)?;
 
-// カートから商品を削除
-#[debug_handler]
+    let sql = format!(
+        "UPDATE cart_items SET quantity = $1
+         WHERE user_id = $2 AND product_id = $3
+         RETURNING {CART_COLUMNS}"
+    );
+
+    let updated = sqlx::query_as::<_, CartItem>(&sql)
+        .bind(payload.quantity)
+        .bind(user_id)
+        .bind(payload.product_id)
+        .fetch_optional(&pool)
+        .await?;
+
+    updated
+        .map(Json)
+        .ok_or_else(|| AppError::NotFound("カートに該当の商品がありません".to_string()))
+}
+
+/// カートから商品を削除
 pub async fn remove_item(
     State(pool): State<DbPool>,
-    Json(payload): Json<RemoveCartItem>
-) -> Result<impl IntoResponse, String> {
-    let result = sqlx::query(
-        "DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2"
-    )
-    .bind(&payload.user_id)
-    .bind(&payload.product_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    Extension(claims): Extension<Claims>,
+    Json(payload): Json<RemoveCartItem>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let user_id = claims.user_id()?;
+
+    let result = sqlx::query("DELETE FROM cart_items WHERE user_id = $1 AND product_id = $2")
+        .bind(user_id)
+        .bind(payload.product_id)
+        .execute(&pool)
+        .await?;
 
     if result.rows_affected() == 0 {
-        return Err("削除する商品が見つかりませんでした".to_string());
+        return Err(AppError::NotFound("削除する商品が見つかりませんでした".to_string()));
     }
 
     Ok(Json(serde_json::json!({
@@ -178,25 +133,20 @@ pub async fn remove_item(
     })))
 }
 
-// ユーザーのカートを全削除
-#[debug_handler]
+/// カートを全削除
 pub async fn clear_cart(
     State(pool): State<DbPool>,
-    Path(user_id): Path<Uuid>
-) -> Result<impl IntoResponse, String> {
-    let result = sqlx::query(
-        "DELETE FROM cart_items WHERE user_id = $1"
-    )
-    .bind(&user_id)
-    .execute(&pool)
-    .await
-    .map_err(|e| e.to_string())?;
+    Extension(claims): Extension<Claims>,
+) -> Result<Json<serde_json::Value>, AppError> {
+    let user_id = claims.user_id()?;
+
+    let result = sqlx::query("DELETE FROM cart_items WHERE user_id = $1")
+        .bind(user_id)
+        .execute(&pool)
+        .await?;
 
     Ok(Json(serde_json::json!({
         "message": "カートをクリアしました",
         "deleted_count": result.rows_affected()
     })))
-
-}    
-
-
+}

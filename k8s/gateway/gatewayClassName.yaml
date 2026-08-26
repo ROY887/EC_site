@@ -2,12 +2,13 @@ apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
   name: ec-gateway-class
-spec: 
-  controllerName: example.com/gateway-controller
-  description: "ECサイト用のgatewayClass"
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  description: "ECサイト用の GatewayClass"
+  # データプレーンのService種別などをEnvoyProxyリソースで指定する
   parametersRef:
-    group: gateway.networking.k8s.io
-    kind:  gatewayClassconfig
-    name:  ec-gateway-config
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: ec-gateway-config
+    namespace: ec-system
     
-

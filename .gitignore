@@ -12,6 +12,20 @@ tls.crt
 tls.key
 *.key
 *.pem
+# 実値を入れた Secret マニフェスト。secrets.example.yaml はテンプレートなので追跡する
+k8s/secrets.yaml
+k8s/secrets.*.yaml
+!k8s/secrets.example.yaml
 
 # macOS
 .DS_Store
+
+# mutagen（同期先のホスト名・IP を含むため公開しない）
+mutagen.yml
+mutagen.yml.lock
+
+# 実ドメインを含む Probe（probe-external.example.yaml から生成する）
+k8s/monitoring/probe-external.yaml
+
+monitoring_architecture.svg
+RELEASE_PLAN.md

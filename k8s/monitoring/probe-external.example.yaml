@@ -1,0 +1,106 @@
+# 使い方:
+#   sed 's/EXAMPLE_DOMAIN/<あなたのドメイン>/g' \
+#     k8s/monitoring/probe-external.example.yaml > k8s/monitoring/probe-external.yaml
+#   kubectl apply -f k8s/monitoring/probe-external.yaml
+# probe-external.yaml は .gitignore で除外している。
+# 公開リポジトリにドメイン名を残さないため、実値はこちらに書かないこと。
+# interval: 60s は Cloudflare の WAF レート制限（同一 IP から 10 秒に 5 回）に
+# 抵触しないための値。短くしすぎると自分の監視でブロックされる。
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: external-frontend 
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: external-probe
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  interval: 60s
+  scrapeTimeout: 15s
+  module: https_external
+  prober:
+    url: blackbox-exporter.ec-monitoring.svc.cluster.local:9115
+    scheme: http
+    path: /probe
+  targets:
+    staticConfig:
+      static:
+      - https://EXAMPLE_DOMAIN/
+      labels:
+        probe_scope: external
+        probe_target: frontend
+---
+# 商品一覧。空配列を異常として扱うため、DB のデータ消失を検知できる。
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: external-products
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: external-probe
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  interval: 60s
+  scrapeTimeout: 15s
+  module: https_products #
+  prober:
+    url: blackbox-exporter.ec-monitoring.svc.cluster.local:9115
+    scheme: http
+    path: /probe
+  targets:
+    staticConfig:
+      static:
+      - https://EXAMPLE_DOMAIN/api/products
+      labels:
+        probe_scope: external
+        probe_target: product-api
+---
+# ログイン。1 リクエストで DB 接続と JWT 発行まで検証する。
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: external-login
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: external-probe
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  interval: 60s
+  scrapeTimeout: 15s
+  module: https_login
+  prober:
+    url: blackbox-exporter.ec-monitoring.svc.cluster.local:9115
+    scheme: http
+    path: /probe
+  targets:
+    staticConfig:
+      static:
+      - https://EXAMPLE_DOMAIN/api/login
+      labels:
+        probe_scope: external
+        probe_target: user-api
+---
+#認証ミドルウェア。401 が返ることが正常。200 なら認証が外れている。
+apiVersion: monitoring.coreos.com/v1
+kind: Probe
+metadata:
+  name: external-auth-guard
+  namespace: ec-monitoring
+  labels:
+    app.kubernetes.io/name: external-probe
+    app.kubernetes.io/part-of: ec-microservices
+spec:
+  interval: 60s
+  scrapeTimeout: 15s
+  module: https_expect_401
+  prober:
+    url: blackbox-exporter.ec-monitoring.svc.cluster.local:9115
+    scheme: http
+    path: /probe
+  targets:
+    staticConfig:
+      static:
+      - https://EXAMPLE_DOMAIN/api/cart
+      labels:
+        probe_scope: external
+        probe_target: cart-api

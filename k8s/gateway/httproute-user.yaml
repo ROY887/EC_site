@@ -1,3 +1,6 @@
+# 認証は user-api / cart-api のミドルウェアが JWT を検証して行う。
+# Gateway 側のヘッダ付与は、どのサービスに向いたリクエストかを
+# ログで追跡するための目印であり、認可の判断には使っていない。
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -8,86 +11,54 @@ metadata:
     app.kubernetes.io/part-of: ec-microservices
 spec:
   parentRefs:
-  - name: ec-gateway
+  - name: ec-apigate-way
     namespace: ec-system
-    sectionName: https
-  
-  hostnames:
-  - "api.ec-site.example.com"
+    sectionName: http
 
   rules:
-# ユーザー登録
-  - matches:
-    - path:
-        type: Exact
-        value: /api/users
-      method: POST
-    backendRefs:
-    - name: user-api-service
-      port: 8081
-    filters:
-    - type: RequestHeaderModifier
-      requestHeaderModifier:
-        add:
-        - name: X-Service
-          value: user-api
-    timeouts:
-      request: 15s
-  
-  # ログイン
+  # ログイン（Exact マッチのため ReplaceFullPath を使う）
   - matches:
     - path:
         type: Exact
         value: /api/login
       method: POST
-    backendRefs:
-    - name: user-api-service
-      port: 8081
-    timeouts:
-      request: 10s
-  
-  # ユーザー情報取得（認証必須）
-  - matches:
-    - path:
-        type: RegularExpression
-        value: /api/users/[0-9a-f-]+
-      method: GET
     filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplaceFullPath
+          replaceFullPath: /login
     - type: RequestHeaderModifier
       requestHeaderModifier:
         add:
-        - name: X-Require-Auth
-          value: user
+        - name: X-Service
+          value: user-api
     backendRefs:
-    - name: user-api-service
+    - name: user-service
+      namespace: ec-backend
       port: 8081
-  
-  # ユーザー更新（認証必須）
+    timeouts:
+      request: 15s
+
+  # ユーザー登録・取得・更新・削除
   - matches:
     - path:
-        type: RegularExpression
-        value: /api/users/[0-9a-f-]+
-      method: PUT
+        type: PathPrefix
+        value: /api/users
     filters:
+    - type: URLRewrite
+      urlRewrite:
+        path:
+          type: ReplacePrefixMatch
+          replacePrefixMatch: /users
     - type: RequestHeaderModifier
       requestHeaderModifier:
         add:
-        - name: X-Require-Auth
-          value: user
+        - name: X-Service
+          value: user-api
     backendRefs:
-    - name: user-api-service
-      port: 8081
-  
-  # ヘルスチェック
-  - matches:
-    - path:
-        type: Exact
-        value: /health
-      method: GET
-    backendRefs:
-    - name: user-api-service
+    - name: user-service
+      namespace: ec-backend
       port: 8081
     timeouts:
-      request: 5s
-      
-      
+      request: 15s
